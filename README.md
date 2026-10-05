@@ -1,56 +1,87 @@
-# Welcome to your Expo app 👋
+# RepTile 🦖
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Android app (React Native + Expo) to plan and run gym and CrossFit workouts.
 
-## Get started
+- **Strength**: sets, reps, weight and rest, with an automatic rest timer between sets.
+- **WODs**: AMRAP, EMOM and For Time, with a full-screen timer and lead-in countdown.
+- **Notifications**: alerts when a rest or WOD ends, even with the screen off or the app killed.
+- **History and PRs**: max weight, estimated 1RM, volume and a progression chart per exercise.
 
-1. Install dependencies
+Data is stored on the device (SQLite). The app UI is in Portuguese.
 
-   ```bash
-   npm install
-   ```
+## Requirements
 
-2. Start the app
+- Node.js 22+
+- Android SDK (installed by Android Studio in `~/Android/Sdk`)
+- **JDK 17** — the Java bundled with Android Studio (25) does not work with React Native's native build.
 
-   ```bash
-   npx expo start
-   ```
+Environment variables (in `~/.zshrc` or `~/.bashrc`):
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```sh
+export ANDROID_HOME=$HOME/Android/Sdk
+export JAVA_HOME=$HOME/.local/jdk-17   # path to your JDK 17
+export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Development
 
-### Other setup steps
+```sh
+npm install
+npm run android   # builds, installs on the USB-connected phone and starts Metro
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+The development build loads JavaScript from your computer: the phone must stay connected by USB with Metro running (`npx expo start`). If the app shows "Unable to load script", run `adb reverse tcp:8081 tcp:8081` and tap **Reload**.
 
-## Learn more
+Other commands:
 
-To learn more about developing your project with Expo, look at the following resources:
+```sh
+npm test            # tests (timer, PRs)
+npm run typecheck   # TypeScript
+npm run lint        # ESLint
+npm run db:generate # generate a migration after changing src/db/schema.ts
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Building a release APK
 
-## Join the community
+The release APK bundles the JavaScript: it opens straight from the launcher icon, no computer needed.
 
-Join our community of developers creating universal apps.
+1. **(Only if you changed `app.json`, config plugins, native libraries, app icons or splash)** regenerate the native project:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+   ```sh
+   npx expo prebuild --platform android --clean
+   ```
+
+2. **Build**:
+
+   ```sh
+   cd android
+   ./gradlew assembleRelease
+   ```
+
+   The first build takes a long time; later builds are much faster. The APK is written to:
+
+   ```
+   android/app/build/outputs/apk/release/app-release.apk
+   ```
+
+3. **Install** on the USB-connected phone:
+
+   ```sh
+   adb install -r app/build/outputs/apk/release/app-release.apk
+   ```
+
+   `-r` upgrades in place and keeps your data. Without a cable: send the `.apk` to the phone (Drive, Telegram…), open the file and allow the installation.
+
+## Project structure
+
+```
+index.ts                 # entry point: registers notifications and the timer foreground service
+src/app/                 # screens (expo-router)
+src/db/                  # Drizzle schema, migrations and seed exercises
+src/features/timer/      # timer engine, beeps and notifications
+src/features/session/    # running workouts (strength and WOD)
+src/features/stats/      # PR calculations
+src/features/workouts/   # workout editing
+plugins/                 # config plugins (notification sounds)
+assets/icon/             # mascot art + script that renders the app icons
+```
