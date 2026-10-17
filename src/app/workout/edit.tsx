@@ -7,13 +7,14 @@ import {
   HelperText,
   IconButton,
   List,
-  SegmentedButtons,
+  Menu,
   Text,
   TextInput,
   TouchableRipple,
   useTheme,
 } from 'react-native-paper';
 
+import { BlockConfigFields } from '@/components/block-config-fields';
 import { DurationField } from '@/components/duration-field';
 import { ExercisePicker } from '@/components/exercise-picker';
 import { LocationPicker } from '@/components/location-picker';
@@ -21,31 +22,42 @@ import { MachinePicker } from '@/components/machine-picker';
 import { NumberField } from '@/components/number-field';
 import { SetBadge } from '@/components/set-badge';
 import { SetTypeDialog } from '@/components/set-type-dialog';
-import { WORKOUT_TYPES, type Exercise, type SetType, type WorkoutType } from '@/db/schema';
+import type { BlockKind, Exercise, SetType } from '@/db/schema';
 import { useLocation, useMachineMap } from '@/features/places/queries';
 import { setLabels } from '@/features/session/sets';
+import { BLOCK_KIND_ICON, BLOCK_KIND_LABEL, describeBlockFormat, WOD_KINDS } from '@/features/workouts/blocks';
 import { useExerciseMap } from '@/features/workouts/queries';
 import {
+  emptyBlock,
   emptyItem,
   emptyWorkout,
   getWorkoutDraft,
   newSet,
   saveWorkout,
+  type BlockDraft,
   type SetDraft,
   type WorkoutDraft,
   type WorkoutItemDraft,
 } from '@/features/workouts/repo';
-import { WORKOUT_TYPE_LABEL } from '@/theme';
+
+type ItemRef = { block: number; item: number };
+
+function move<T>(list: T[], index: number, delta: number): T[] {
+  const next = [...list];
+  const [it] = next.splice(index, 1);
+  next.splice(index + delta, 0, it);
+  return next;
+}
 
 export default function EditWorkoutScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [draft, setDraft] = useState<WorkoutDraft | null>(id ? null : emptyWorkout());
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerFor, setPickerFor] = useState<number | 'new' | null>(null);
   const [saving, setSaving] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
-  const [machineFor, setMachineFor] = useState<number | null>(null);
+  const [blockMenuOpen, setBlockMenuOpen] = useState(false);
+  const [machineFor, setMachineFor] = useState<ItemRef | null>(null);
   const exerciseMap = useExerciseMap();
-  const machineMap = useMachineMap();
   const location = useLocation(draft?.locationId);
   const theme = useTheme();
 
@@ -56,29 +68,30 @@ export default function EditWorkoutScreen() {
   if (!draft) return null;
 
   const update = (patch: Partial<WorkoutDraft>) => setDraft({ ...draft, ...patch });
-  const updateItem = (index: number, patch: Partial<WorkoutItemDraft>) =>
-    update({ items: draft.items.map((it, i) => (i === index ? { ...it, ...patch } : it)) });
-  const moveItem = (index: number, delta: number) => {
-    const items = [...draft.items];
-    const [it] = items.splice(index, 1);
-    items.splice(index + delta, 0, it);
-    update({ items });
+  const updateBlock = (index: number, patch: Partial<BlockDraft>) =>
+    update({ blocks: draft.blocks.map((b, i) => (i === index ? { ...b, ...patch } : b)) });
+  const updateItem = ({ block, item }: ItemRef, patch: Partial<WorkoutItemDraft>) =>
+    updateBlock(block, { items: draft.blocks[block].items.map((it, i) => (i === item ? { ...it, ...patch } : it)) });
+
+  /** Adds an exercise: to the given block, or to a trailing exercises block (created if needed). */
+  const addExercise = (exerciseId: string) => {
+    if (typeof pickerFor === 'number') {
+      const b = draft.blocks[pickerFor];
+      updateBlock(pickerFor, { items: [...b.items, emptyItem(exerciseId, b.kind)] });
+      return;
+    }
+    const last = draft.blocks.at(-1);
+    if (last?.kind === 'exercises') {
+      updateBlock(draft.blocks.length - 1, { items: [...last.items, emptyItem(exerciseId, 'exercises')] });
+    } else {
+      update({ blocks: [...draft.blocks, { ...emptyBlock('exercises'), items: [emptyItem(exerciseId, 'exercises')] }] });
+    }
   };
 
-  const changeType = (type: WorkoutType) => {
-    const defaults = emptyWorkout(type);
-    update({
-      type,
-      durationSec: draft.durationSec ?? defaults.durationSec,
-      intervalSec: draft.intervalSec ?? defaults.intervalSec,
-      rounds: draft.rounds ?? defaults.rounds,
-      timeCapSec: draft.timeCapSec ?? defaults.timeCapSec,
-      items: draft.items.map((it) => ({
-        ...it,
-        sets: type === 'strength' ? (it.sets.length ? it.sets : [1, 2, 3].map(() => newSet('normal', it))) : [],
-        restSec: type === 'strength' ? (it.restSec ?? 90) : null,
-      })),
-    });
+  const addBlock = (kind: BlockKind) => {
+    setBlockMenuOpen(false);
+    update({ blocks: [...draft.blocks, emptyBlock(kind)] });
+    setPickerFor(draft.blocks.length);
   };
 
   const errors = validate(draft);
@@ -92,6 +105,8 @@ export default function EditWorkoutScreen() {
       setSaving(false);
     }
   };
+
+  const machineItem = machineFor ? draft.blocks[machineFor.block]?.items[machineFor.item] : undefined;
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior="padding">
@@ -108,13 +123,6 @@ export default function EditWorkoutScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <TextInput mode="outlined" label="Nome do treino" value={draft.name} onChangeText={(name) => update({ name })} />
 
-        <SegmentedButtons
-          value={draft.type}
-          onValueChange={(v) => changeType(v as WorkoutType)}
-          density="small"
-          buttons={WORKOUT_TYPES.map((t) => ({ value: t, label: WORKOUT_TYPE_LABEL[t] }))}
-        />
-
         <TouchableRipple
           onPress={() => setLocationOpen(true)}
           accessibilityRole="button"
@@ -128,8 +136,6 @@ export default function EditWorkoutScreen() {
           />
         </TouchableRipple>
 
-        <TypeParams draft={draft} update={update} />
-
         <TextInput
           mode="outlined"
           label="Observações"
@@ -138,55 +144,38 @@ export default function EditWorkoutScreen() {
           onChangeText={(notes) => update({ notes: notes || null })}
         />
 
-        <Text variant="titleMedium" style={styles.section}>
-          {draft.type === 'strength' ? 'Exercícios' : 'Movimentos (por round)'}
-        </Text>
+        {draft.blocks.map((block, bi) => (
+          <BlockEditor
+            key={block.id ?? `new-${bi}`}
+            block={block}
+            index={bi}
+            count={draft.blocks.length}
+            exerciseMap={exerciseMap}
+            onChange={(patch) => updateBlock(bi, patch)}
+            onMove={(delta) => update({ blocks: move(draft.blocks, bi, delta) })}
+            onRemove={() => update({ blocks: draft.blocks.filter((_, i) => i !== bi) })}
+            onAddItem={() => setPickerFor(bi)}
+            onPickMachine={(item) => setMachineFor({ block: bi, item })}
+          />
+        ))}
 
-        {draft.items.map((item, index) => {
-          const ex = exerciseMap.get(item.exerciseId);
-          return (
-            <Card key={item.id ?? `new-${index}`} mode="contained">
-              <Card.Title
-                title={ex?.name ?? 'Exercício removido'}
-                subtitle={item.machineId ? `⚙ ${machineMap.get(item.machineId)?.name ?? ''}` : ex?.category}
-                right={() => (
-                  <View style={styles.row}>
-                    <IconButton icon="arrow-up" disabled={index === 0} onPress={() => moveItem(index, -1)} />
-                    <IconButton
-                      icon="arrow-down"
-                      disabled={index === draft.items.length - 1}
-                      onPress={() => moveItem(index, 1)}
-                    />
-                    <IconButton
-                      icon="delete-outline"
-                      onPress={() => update({ items: draft.items.filter((_, i) => i !== index) })}
-                    />
-                  </View>
-                )}
-              />
-              <Card.Content>
-                <Button
-                  compact
-                  icon="cog-outline"
-                  mode="text"
-                  style={styles.machineBtn}
-                  onPress={() => setMachineFor(index)}>
-                  {item.machineId ? 'Trocar máquina' : 'Sem máquina · adicionar'}
-                </Button>
-                <ItemFields
-                  type={draft.type}
-                  exercise={ex}
-                  item={item}
-                  onChange={(patch) => updateItem(index, patch)}
-                />
-              </Card.Content>
-            </Card>
-          );
-        })}
-
-        <Button icon="plus" mode="outlined" onPress={() => setPickerOpen(true)}>
-          Adicionar exercício
-        </Button>
+        <View style={styles.row}>
+          <Button icon="plus" mode="outlined" style={styles.flex} onPress={() => setPickerFor('new')}>
+            Exercício
+          </Button>
+          <Menu
+            visible={blockMenuOpen}
+            onDismiss={() => setBlockMenuOpen(false)}
+            anchor={
+              <Button icon="plus-box-multiple-outline" mode="outlined" onPress={() => setBlockMenuOpen(true)}>
+                Bloco
+              </Button>
+            }>
+            {WOD_KINDS.map((k) => (
+              <Menu.Item key={k} leadingIcon={BLOCK_KIND_ICON[k]} title={BLOCK_KIND_LABEL[k]} onPress={() => addBlock(k)} />
+            ))}
+          </Menu>
+        </View>
         {errors.map((e) => (
           <HelperText key={e} type="info">
             {e}
@@ -194,11 +183,7 @@ export default function EditWorkoutScreen() {
         ))}
       </ScrollView>
 
-      <ExercisePicker
-        visible={pickerOpen}
-        onDismiss={() => setPickerOpen(false)}
-        onPick={(exerciseId) => update({ items: [...draft.items, emptyItem(exerciseId, draft.type)] })}
-      />
+      <ExercisePicker visible={pickerFor != null} onDismiss={() => setPickerFor(null)} onPick={addExercise} />
       <LocationPicker
         visible={locationOpen}
         currentId={draft.locationId}
@@ -206,14 +191,14 @@ export default function EditWorkoutScreen() {
         onDismiss={() => setLocationOpen(false)}
         onPick={(locationId) => update({ locationId })}
       />
-      {machineFor != null && draft.items[machineFor] && (
+      {machineFor && machineItem && (
         <MachinePicker
           visible
-          exerciseId={draft.items[machineFor].exerciseId}
-          exerciseName={exerciseMap.get(draft.items[machineFor].exerciseId)?.name ?? ''}
+          exerciseId={machineItem.exerciseId}
+          exerciseName={exerciseMap.get(machineItem.exerciseId)?.name ?? ''}
           locationId={draft.locationId}
           locationName={location?.name}
-          currentMachineId={draft.items[machineFor].machineId}
+          currentMachineId={machineItem.machineId}
           onDismiss={() => setMachineFor(null)}
           onPick={(machineId) => updateItem(machineFor, { machineId })}
         />
@@ -222,59 +207,146 @@ export default function EditWorkoutScreen() {
   );
 }
 
-function TypeParams({ draft, update }: { draft: WorkoutDraft; update: (p: Partial<WorkoutDraft>) => void }) {
-  switch (draft.type) {
-    case 'strength':
-      return null;
-    case 'amrap':
-      return (
-        <DurationField
-          label="Duração (m:ss)"
-          value={draft.durationSec}
-          onChange={(durationSec) => update({ durationSec })}
+/** One block of the routine: plain exercises (one card each) or a WOD with its settings and movements. */
+function BlockEditor({
+  block,
+  index,
+  count,
+  exerciseMap,
+  onChange,
+  onMove,
+  onRemove,
+  onAddItem,
+  onPickMachine,
+}: {
+  block: BlockDraft;
+  index: number;
+  count: number;
+  exerciseMap: Map<string, Exercise>;
+  onChange: (patch: Partial<BlockDraft>) => void;
+  onMove: (delta: number) => void;
+  onRemove: () => void;
+  onAddItem: () => void;
+  onPickMachine: (item: number) => void;
+}) {
+  const theme = useTheme();
+  const machineMap = useMachineMap();
+  const wod = block.kind !== 'exercises';
+  const setItem = (i: number, patch: Partial<WorkoutItemDraft>) =>
+    onChange({ items: block.items.map((it, j) => (j === i ? { ...it, ...patch } : it)) });
+
+  const blockActions = (
+    <View style={styles.row}>
+      <IconButton icon="arrow-up" accessibilityLabel="Mover bloco para cima" disabled={index === 0} onPress={() => onMove(-1)} />
+      <IconButton
+        icon="arrow-down"
+        accessibilityLabel="Mover bloco para baixo"
+        disabled={index === count - 1}
+        onPress={() => onMove(1)}
+      />
+      <IconButton icon="delete-outline" accessibilityLabel="Remover bloco" onPress={onRemove} />
+    </View>
+  );
+
+  const items = block.items.map((item, i) => {
+    const ex = exerciseMap.get(item.exerciseId);
+    const actions = (
+      <View style={styles.row}>
+        <IconButton icon="arrow-up" size={18} disabled={i === 0} onPress={() => onChange({ items: move(block.items, i, -1) })} />
+        <IconButton
+          icon="arrow-down"
+          size={18}
+          disabled={i === block.items.length - 1}
+          onPress={() => onChange({ items: move(block.items, i, 1) })}
         />
-      );
-    case 'emom':
+        <IconButton icon="delete-outline" size={18} onPress={() => onChange({ items: block.items.filter((_, j) => j !== i) })} />
+      </View>
+    );
+    if (wod) {
       return (
-        <View style={styles.row}>
-          <DurationField
-            style={styles.flex}
-            label="Intervalo (m:ss)"
-            value={draft.intervalSec}
-            onChange={(intervalSec) => update({ intervalSec })}
-          />
-          <NumberField style={styles.flex} label="Rounds" value={draft.rounds} onChange={(rounds) => update({ rounds })} />
+        <View key={item.id ?? `new-${i}`} style={styles.movement}>
+          <View style={styles.movementHeader}>
+            <Text variant="titleSmall" style={styles.flex}>
+              {block.alternate ? `${i + 1}º intervalo · ` : ''}
+              {ex?.name ?? 'Exercício removido'}
+            </Text>
+            {actions}
+          </View>
+          <ItemFields kind={block.kind} exercise={ex} item={item} onChange={(patch) => setItem(i, patch)} />
         </View>
       );
-    case 'for_time':
-      return (
-        <View style={styles.row}>
-          <NumberField style={styles.flex} label="Rounds" value={draft.rounds} onChange={(rounds) => update({ rounds })} />
-          <DurationField
-            style={styles.flex}
-            label="Time cap (m:ss)"
-            value={draft.timeCapSec}
-            onChange={(timeCapSec) => update({ timeCapSec })}
-          />
-        </View>
-      );
+    }
+    return (
+      <Card key={item.id ?? `new-${i}`} mode="contained">
+        <Card.Title
+          title={ex?.name ?? 'Exercício removido'}
+          subtitle={item.machineId ? `⚙ ${machineMap.get(item.machineId)?.name ?? ''}` : ex?.category}
+          right={() => actions}
+        />
+        <Card.Content>
+          <Button compact icon="cog-outline" mode="text" style={styles.machineBtn} onPress={() => onPickMachine(i)}>
+            {item.machineId ? 'Trocar máquina' : 'Sem máquina · adicionar'}
+          </Button>
+          <ItemFields kind={block.kind} exercise={ex} item={item} onChange={(patch) => setItem(i, patch)} />
+        </Card.Content>
+      </Card>
+    );
+  });
+
+  if (!wod) {
+    return (
+      <View style={styles.block}>
+        {count > 1 && (
+          <View style={styles.blockHeader}>
+            <Text variant="titleMedium" style={styles.flex}>
+              Exercícios
+            </Text>
+            {blockActions}
+          </View>
+        )}
+        {items}
+        <Button icon="plus" mode="text" style={styles.addInBlock} onPress={onAddItem}>
+          Exercício neste bloco
+        </Button>
+      </View>
+    );
   }
+
+  return (
+    <Card mode="outlined" style={{ borderColor: theme.colors.secondary }}>
+      <Card.Title
+        title={describeBlockFormat(block)}
+        titleVariant="titleMedium"
+        left={(p) => <List.Icon {...p} icon={BLOCK_KIND_ICON[block.kind]} color={theme.colors.secondary} />}
+        right={() => blockActions}
+      />
+      <Card.Content style={styles.wodContent}>
+        <BlockConfigFields config={block} onChange={onChange} />
+        <Text variant="labelLarge" style={styles.muted}>
+          {block.kind === 'emom' && !block.alternate ? 'MOVIMENTOS (A CADA INTERVALO)' : block.alternate ? 'MOVIMENTOS (EM SEQUÊNCIA)' : 'MOVIMENTOS (POR ROUND)'}
+        </Text>
+        {items}
+        <Button icon="plus" mode="text" style={styles.addInBlock} onPress={onAddItem}>
+          Movimento
+        </Button>
+      </Card.Content>
+    </Card>
+  );
 }
 
 function ItemFields({
-  type,
+  kind,
   exercise,
   item,
   onChange,
 }: {
-  type: WorkoutType;
+  kind: BlockKind;
   exercise: Exercise | undefined;
   item: WorkoutItemDraft;
   onChange: (patch: Partial<WorkoutItemDraft>) => void;
 }) {
   const measure = exercise?.measure ?? 'reps';
-  const strength = type === 'strength';
-  if (strength) {
+  if (kind === 'exercises') {
     return (
       <View style={styles.setsBox}>
         <SetsEditor measure={measure} sets={item.sets} onChange={(sets) => onChange({ sets })} />
@@ -421,29 +493,31 @@ function SetsEditor({
 function validate(d: WorkoutDraft): string[] {
   const errors: string[] = [];
   if (!d.name.trim()) errors.push('Dê um nome ao treino.');
-  if (d.items.length === 0) errors.push('Adicione pelo menos um exercício.');
-  if (d.type === 'amrap' && !d.durationSec) errors.push('Informe a duração do AMRAP.');
-  if (d.type === 'emom' && (!d.intervalSec || !d.rounds)) errors.push('Informe intervalo e rounds do EMOM.');
-  return errors;
+  if (!d.blocks.some((b) => b.items.length)) errors.push('Adicione pelo menos um exercício.');
+  for (const b of d.blocks) {
+    if (b.kind === 'amrap' && !b.durationSec) errors.push('Informe a duração do AMRAP.');
+    if (b.kind === 'emom' && (!b.intervalSec || !b.rounds)) errors.push('Informe intervalo e número de intervalos do EMOM.');
+    if (b.kind !== 'exercises' && !b.items.length) errors.push(`Adicione movimentos ao ${BLOCK_KIND_LABEL[b.kind]}.`);
+  }
+  return [...new Set(errors)];
 }
 
-/** Drops fields that don't apply to the selected type. */
+/** Trims the name and drops empty blocks. */
 function cleanDraft(d: WorkoutDraft): WorkoutDraft {
-  return {
-    ...d,
-    name: d.name.trim(),
-    durationSec: d.type === 'amrap' ? d.durationSec : null,
-    intervalSec: d.type === 'emom' ? d.intervalSec : null,
-    rounds: d.type === 'emom' || d.type === 'for_time' ? d.rounds : null,
-    timeCapSec: d.type === 'for_time' ? d.timeCapSec : null,
-  };
+  return { ...d, name: d.name.trim(), blocks: d.blocks.filter((b) => b.items.length) };
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: 16, gap: 12, paddingBottom: 48 },
-  section: { marginTop: 8 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  block: { gap: 12 },
+  blockHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  addInBlock: { alignSelf: 'flex-start' },
+  wodContent: { gap: 12 },
+  movement: { gap: 4 },
+  movementHeader: { flexDirection: 'row', alignItems: 'center' },
+  muted: { opacity: 0.7, letterSpacing: 0.6 },
   fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   field: { flexGrow: 1, flexBasis: 90 },
   locationBtn: { borderRadius: 12 },

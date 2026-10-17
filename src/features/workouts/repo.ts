@@ -3,16 +3,19 @@ import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db/client';
 import {
   exercises,
+  workoutBlocks,
   workoutItems,
   workoutItemSets,
   workouts,
+  type BlockKind,
   type Measure,
   type SetType,
-  type WorkoutType,
 } from '@/db/schema';
 import { createdFields, touched } from '@/lib/ids';
 
-/** Strength: the target of one set. */
+import { cleanBlockConfig, defaultBlockConfig, type BlockConfig } from './blocks';
+
+/** Exercises blocks: the target of one set. */
 export type SetDraft = {
   id?: string;
   type: SetType;
@@ -28,9 +31,9 @@ export type WorkoutItemDraft = {
   id?: string;
   exerciseId: string;
   machineId: string | null;
-  /** Strength: one entry per set (weight and reps may vary). Empty for WODs. */
+  /** Exercises blocks: one entry per set (weight and reps may vary). Empty in WOD blocks. */
   sets: SetDraft[];
-  /** WODs: reps/weight/etc. per round. */
+  /** WOD blocks: reps/weight/etc. per round (or per interval). */
   reps: number | null;
   weight: number | null;
   durationSec: number | null;
@@ -40,16 +43,17 @@ export type WorkoutItemDraft = {
   notes: string | null;
 };
 
+export type BlockDraft = BlockConfig & {
+  id?: string;
+  notes: string | null;
+  items: WorkoutItemDraft[];
+};
+
 export type WorkoutDraft = {
   name: string;
-  type: WorkoutType;
   notes: string | null;
-  durationSec: number | null;
-  intervalSec: number | null;
-  rounds: number | null;
-  timeCapSec: number | null;
   locationId: string | null;
-  items: WorkoutItemDraft[];
+  blocks: BlockDraft[];
 };
 
 export const newSet = (type: SetType = 'normal', from?: Partial<SetDraft>): SetDraft => ({
@@ -61,86 +65,96 @@ export const newSet = (type: SetType = 'normal', from?: Partial<SetDraft>): SetD
   calories: from?.calories ?? null,
 });
 
-export const emptyItem = (exerciseId: string, type: WorkoutType): WorkoutItemDraft => ({
+export const emptyItem = (exerciseId: string, kind: BlockKind): WorkoutItemDraft => ({
   exerciseId,
   machineId: null,
-  sets: type === 'strength' ? [newSet(), newSet(), newSet()] : [],
+  sets: kind === 'exercises' ? [newSet(), newSet(), newSet()] : [],
   reps: 10,
   weight: null,
   durationSec: null,
   distanceM: null,
   calories: null,
-  restSec: type === 'strength' ? 90 : null,
+  restSec: kind === 'exercises' ? 90 : null,
   notes: null,
 });
 
-export function emptyWorkout(type: WorkoutType = 'strength'): WorkoutDraft {
-  return {
-    name: '',
-    type,
-    notes: null,
-    durationSec: type === 'amrap' ? 12 * 60 : null,
-    intervalSec: type === 'emom' ? 60 : null,
-    rounds: type === 'emom' ? 10 : type === 'for_time' ? 3 : null,
-    timeCapSec: type === 'for_time' ? 15 * 60 : null,
-    locationId: null,
-    items: [],
-  };
+export const emptyBlock = (kind: BlockKind): BlockDraft => ({ ...defaultBlockConfig(kind), notes: null, items: [] });
+
+export function emptyWorkout(): WorkoutDraft {
+  return { name: '', notes: null, locationId: null, blocks: [] };
 }
 
 export async function getWorkoutDraft(id: string): Promise<WorkoutDraft | null> {
   const w = await db.query.workouts.findFirst({
     where: and(eq(workouts.id, id), isNull(workouts.deletedAt)),
     with: {
-      items: {
-        where: isNull(workoutItems.deletedAt),
-        orderBy: asc(workoutItems.position),
-        with: { targetSets: { where: isNull(workoutItemSets.deletedAt), orderBy: asc(workoutItemSets.position) } },
+      blocks: {
+        where: isNull(workoutBlocks.deletedAt),
+        orderBy: asc(workoutBlocks.position),
+        with: {
+          items: {
+            where: isNull(workoutItems.deletedAt),
+            orderBy: asc(workoutItems.position),
+            with: { targetSets: { where: isNull(workoutItemSets.deletedAt), orderBy: asc(workoutItemSets.position) } },
+          },
+        },
       },
     },
   });
   if (!w) return null;
   return {
     name: w.name,
-    type: w.type,
     notes: w.notes,
-    durationSec: w.durationSec,
-    intervalSec: w.intervalSec,
-    rounds: w.rounds,
-    timeCapSec: w.timeCapSec,
     locationId: w.locationId,
-    items: w.items.map((i) => ({
-      id: i.id,
-      exerciseId: i.exerciseId,
-      machineId: i.machineId,
-      sets:
-        w.type !== 'strength'
-          ? []
-          : i.targetSets.length
-            ? i.targetSets.map((t) => ({
-                id: t.id,
-                type: t.type,
-                reps: t.reps,
-                weight: t.weight,
-                durationSec: t.durationSec,
-                distanceM: t.distanceM,
-                calories: t.calories,
-              }))
-            : Array.from({ length: Math.max(1, i.sets ?? 1) }, () => newSet('normal', i)),
-      reps: i.reps,
-      weight: i.weight,
-      durationSec: i.durationSec,
-      distanceM: i.distanceM,
-      calories: i.calories,
-      restSec: i.restSec,
-      notes: i.notes,
+    blocks: w.blocks.map((b) => ({
+      id: b.id,
+      kind: b.kind,
+      durationSec: b.durationSec,
+      intervalSec: b.intervalSec,
+      rounds: b.rounds,
+      timeCapSec: b.timeCapSec,
+      alternate: b.alternate,
+      notes: b.notes,
+      items: b.items.map((i) => ({
+        id: i.id,
+        exerciseId: i.exerciseId,
+        machineId: i.machineId,
+        sets:
+          b.kind !== 'exercises'
+            ? []
+            : i.targetSets.length
+              ? i.targetSets.map((t) => ({
+                  id: t.id,
+                  type: t.type,
+                  reps: t.reps,
+                  weight: t.weight,
+                  durationSec: t.durationSec,
+                  distanceM: t.distanceM,
+                  calories: t.calories,
+                }))
+              : Array.from({ length: Math.max(1, i.sets ?? 1) }, () => newSet('normal', i)),
+        reps: i.reps,
+        weight: i.weight,
+        durationSec: i.durationSec,
+        distanceM: i.distanceM,
+        calories: i.calories,
+        restSec: i.restSec,
+        notes: i.notes,
+      })),
     })),
   };
 }
 
-/** Creates or updates a workout, replacing its exercise list. Returns the ID. */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Soft-deletes rows of `table` with the given ids. */
+async function softDelete(tx: Tx, table: typeof workoutBlocks | typeof workoutItems | typeof workoutItemSets, ids: string[]) {
+  if (ids.length) await tx.update(table).set({ deletedAt: Date.now(), ...touched() }).where(inArray(table.id, ids));
+}
+
+/** Creates or updates a workout, replacing its blocks and their items. Returns the ID. */
 export async function saveWorkout(id: string | null, draft: WorkoutDraft): Promise<string> {
-  const { items, ...fields } = draft;
+  const { blocks, ...fields } = draft;
   return db.transaction(async (tx) => {
     let workoutId = id;
     if (workoutId) {
@@ -151,53 +165,61 @@ export async function saveWorkout(id: string | null, draft: WorkoutDraft): Promi
       await tx.insert(workouts).values({ ...created, ...fields });
     }
 
-    const existing = await tx
+    const keepBlocks = new Set(blocks.flatMap((b) => (b.id ? [b.id] : [])));
+    const keepItems = new Set(blocks.flatMap((b) => b.items.flatMap((i) => (i.id ? [i.id] : []))));
+    const oldBlocks = await tx
+      .select({ id: workoutBlocks.id })
+      .from(workoutBlocks)
+      .where(and(eq(workoutBlocks.workoutId, workoutId), isNull(workoutBlocks.deletedAt)));
+    await softDelete(tx, workoutBlocks, oldBlocks.map((b) => b.id).filter((bid) => !keepBlocks.has(bid)));
+    const oldItems = await tx
       .select({ id: workoutItems.id })
       .from(workoutItems)
       .where(and(eq(workoutItems.workoutId, workoutId), isNull(workoutItems.deletedAt)));
-    const keep = new Set(items.flatMap((i) => (i.id ? [i.id] : [])));
-    const removed = existing.map((e) => e.id).filter((eid) => !keep.has(eid));
-    if (removed.length) {
-      await tx
-        .update(workoutItems)
-        .set({ deletedAt: Date.now(), ...touched() })
-        .where(inArray(workoutItems.id, removed));
-    }
+    await softDelete(tx, workoutItems, oldItems.map((i) => i.id).filter((iid) => !keepItems.has(iid)));
 
-    for (const [position, { id: existingId, sets, ...item }] of items.entries()) {
-      const values = { ...item, position, sets: fields.type === 'strength' ? sets.length : null };
-      let itemId = existingId;
-      if (itemId) {
-        await tx.update(workoutItems).set({ ...values, ...touched() }).where(eq(workoutItems.id, itemId));
+    for (const [blockPos, { id: existingBlockId, items, ...block }] of blocks.entries()) {
+      const blockValues = { ...cleanBlockConfig(block), notes: block.notes, position: blockPos };
+      let blockId = existingBlockId;
+      if (blockId) {
+        await tx.update(workoutBlocks).set({ ...blockValues, ...touched() }).where(eq(workoutBlocks.id, blockId));
       } else {
         const created = createdFields();
-        itemId = created.id;
-        await tx.insert(workoutItems).values({ ...created, ...values, workoutId });
+        blockId = created.id;
+        await tx.insert(workoutBlocks).values({ ...created, ...blockValues, workoutId });
       }
 
-      // Sync the per-set targets: update kept rows, insert new ones, soft-delete the rest.
-      const oldSets = await tx
-        .select({ id: workoutItemSets.id })
-        .from(workoutItemSets)
-        .where(and(eq(workoutItemSets.workoutItemId, itemId), isNull(workoutItemSets.deletedAt)));
-      const keepSets = new Set(sets.flatMap((st) => (st.id ? [st.id] : [])));
-      const removedSets = oldSets.map((o) => o.id).filter((sid) => !keepSets.has(sid));
-      if (removedSets.length) {
-        await tx
-          .update(workoutItemSets)
-          .set({ deletedAt: Date.now(), ...touched() })
-          .where(inArray(workoutItemSets.id, removedSets));
-      }
-      for (const [setPos, { id: setId, ...target }] of sets.entries()) {
-        if (setId) {
-          await tx
-            .update(workoutItemSets)
-            .set({ ...target, position: setPos, ...touched() })
-            .where(eq(workoutItemSets.id, setId));
+      for (const [position, { id: existingId, sets, ...item }] of items.entries()) {
+        const plain = block.kind === 'exercises';
+        const values = { ...item, blockId, position, sets: plain ? sets.length : null, restSec: plain ? item.restSec : null };
+        let itemId = existingId;
+        if (itemId) {
+          await tx.update(workoutItems).set({ ...values, ...touched() }).where(eq(workoutItems.id, itemId));
         } else {
-          await tx
-            .insert(workoutItemSets)
-            .values({ ...createdFields(), ...target, workoutItemId: itemId, position: setPos });
+          const created = createdFields();
+          itemId = created.id;
+          await tx.insert(workoutItems).values({ ...created, ...values, workoutId });
+        }
+
+        // Sync the per-set targets: update kept rows, insert new ones, soft-delete the rest.
+        const targets = plain ? sets : [];
+        const oldSets = await tx
+          .select({ id: workoutItemSets.id })
+          .from(workoutItemSets)
+          .where(and(eq(workoutItemSets.workoutItemId, itemId), isNull(workoutItemSets.deletedAt)));
+        const keepSets = new Set(targets.flatMap((st) => (st.id ? [st.id] : [])));
+        await softDelete(tx, workoutItemSets, oldSets.map((o) => o.id).filter((sid) => !keepSets.has(sid)));
+        for (const [setPos, { id: setId, ...target }] of targets.entries()) {
+          if (setId) {
+            await tx
+              .update(workoutItemSets)
+              .set({ ...target, position: setPos, ...touched() })
+              .where(eq(workoutItemSets.id, setId));
+          } else {
+            await tx
+              .insert(workoutItemSets)
+              .values({ ...createdFields(), ...target, workoutItemId: itemId, position: setPos });
+          }
         }
       }
     }
@@ -205,24 +227,33 @@ export async function saveWorkout(id: string | null, draft: WorkoutDraft): Promi
   });
 }
 
+/** A draft without database ids, to save as a new workout. */
+export function stripIds(draft: WorkoutDraft): WorkoutDraft {
+  return {
+    ...draft,
+    blocks: draft.blocks.map(({ id: _bid, items, ...b }) => ({
+      ...b,
+      items: items.map(({ id: _id, sets, ...i }) => ({ ...i, sets: sets.map(({ id: _sid, ...st }) => st) })),
+    })),
+  };
+}
+
 export async function duplicateWorkout(id: string): Promise<string | null> {
   const draft = await getWorkoutDraft(id);
   if (!draft) return null;
-  return saveWorkout(null, {
-    ...draft,
-    name: `${draft.name} (cópia)`,
-    items: draft.items.map(({ id: _id, sets, ...i }) => ({ ...i, sets: sets.map(({ id: _sid, ...st }) => st) })),
-  });
+  return saveWorkout(null, { ...stripIds(draft), name: `${draft.name} (cópia)` });
 }
 
 export async function deleteWorkout(id: string) {
   const now = Date.now();
   await db.transaction(async (tx) => {
     await tx.update(workouts).set({ deletedAt: now, ...touched() }).where(eq(workouts.id, id));
-    await tx
-      .update(workoutItems)
-      .set({ deletedAt: now, ...touched() })
-      .where(and(eq(workoutItems.workoutId, id), isNull(workoutItems.deletedAt)));
+    for (const t of [workoutBlocks, workoutItems]) {
+      await tx
+        .update(t)
+        .set({ deletedAt: now, ...touched() })
+        .where(and(eq(t.workoutId, id), isNull(t.deletedAt)));
+    }
   });
 }
 

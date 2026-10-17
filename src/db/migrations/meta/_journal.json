@@ -29,6 +29,13 @@
       "when": 1792253847096,
       "tag": "0003_personal_records",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792261277897,
+      "tag": "0004_blocks",
+      "breakpoints": true
     }
   ]
 }

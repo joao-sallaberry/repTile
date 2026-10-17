@@ -2,7 +2,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, IconButton, Snackbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
+import { Button, Card, IconButton, Menu, Snackbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
 import { DurationField } from '@/components/duration-field';
 import { ExercisePicker } from '@/components/exercise-picker';
@@ -13,16 +13,18 @@ import { NumberField } from '@/components/number-field';
 import { SetBadge } from '@/components/set-badge';
 import { SetTypeDialog } from '@/components/set-type-dialog';
 import { db } from '@/db/client';
-import { sessionSets, type Exercise, type Session, type SessionSet } from '@/db/schema';
+import { BLOCK_KINDS, sessionBlocks, sessionSets, type BlockKind, type Exercise, type Session, type SessionSet } from '@/db/schema';
 import { useCurrentLocation } from '@/features/places/current';
 import { useLocation, useMachineMap } from '@/features/places/queries';
 import { startTimer } from '@/features/timer/start';
 import { useTimerStore } from '@/features/timer/store';
+import { BLOCK_KIND_ICON, BLOCK_KIND_LABEL } from '@/features/workouts/blocks';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDuration, formatWeight } from '@/lib/format';
 
 import { RestTimerBar } from './rest-timer-bar';
 import {
+  addBlockToSession,
   addExerciseToSession,
   addSet,
   completeSet,
@@ -37,17 +39,28 @@ import {
   type PerformedSetRow,
 } from './repo';
 import { countsTowardStats, pairPrevious, setLabels } from './sets';
+import { WodBlockCard } from './wod-block-card';
 
 type Props = { session: Session; onFinish: () => void };
 
-export function StrengthSession({ session, onFinish }: Props) {
+/** The session in progress: its blocks in order (exercises cards and WOD blocks), plus "Adicionar bloco". */
+export function SessionView({ session, onFinish }: Props) {
   const theme = useTheme();
   const exerciseMap = useExerciseMap();
   const location = useLocation(session.locationId);
   const [prMessage, setPrMessage] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
   const [locationOpen, setLocationOpen] = useState(false);
+  const [blockMenuOpen, setBlockMenuOpen] = useState(false);
 
+  const { data: blocks } = useLiveQuery(
+    db
+      .select()
+      .from(sessionBlocks)
+      .where(and(eq(sessionBlocks.sessionId, session.id), isNull(sessionBlocks.deletedAt)))
+      .orderBy(asc(sessionBlocks.position)),
+    [session.id],
+  );
   const { data: sets } = useLiveQuery(
     db
       .select()
@@ -57,16 +70,22 @@ export function StrengthSession({ session, onFinish }: Props) {
     [session.id],
   );
 
-  const groups = useMemo(() => {
-    const map = new Map<number, SessionSet[]>();
-    for (const s of sets) map.set(s.position, [...(map.get(s.position) ?? []), s]);
-    return [...map.entries()].map(([position, list]) => ({ position, sets: list }));
+  const setsByBlock = useMemo(() => {
+    const map = new Map<string, SessionSet[]>();
+    for (const s of sets) {
+      const key = s.sessionBlockId ?? '';
+      map.set(key, [...(map.get(key) ?? []), s]);
+    }
+    return map;
   }, [sets]);
 
-  const done = sets.filter((s) => s.completedAt);
+  const exerciseBlockIds = new Set(blocks.filter((b) => b.kind === 'exercises').map((b) => b.id));
+  const plainSets = sets.filter((s) => s.sessionBlockId && exerciseBlockIds.has(s.sessionBlockId));
+  const done = plainSets.filter((s) => s.completedAt);
   const volume = done
     .filter((s) => countsTowardStats(s.type))
     .reduce((acc, s) => acc + (s.weight ?? 0) * (s.reps ?? 0), 0);
+  const isEmpty = sets.length === 0;
 
   const onToggle = async (set: SessionSet) => {
     if (set.completedAt) {
@@ -77,23 +96,29 @@ export function StrengthSession({ session, onFinish }: Props) {
     const isPR = await completeSet(set);
     if (isPR) setPrMessage(`Novo PR em ${ex?.name ?? 'exercício'}: ${formatWeight(set.weight)} × ${set.reps} 🏆`);
 
-    const remaining = sets.filter((s) => !s.completedAt && s.id !== set.id).length;
+    const remaining = plainSets.filter((s) => !s.completedAt && s.id !== set.id).length;
     if (set.restSec && remaining > 0) {
       startTimer({
         sessionId: session.id,
         label: `Descanso · ${ex?.name ?? ''}`,
         spec: { kind: 'rest', durationSec: set.restSec },
       });
-    } else if (remaining === 0) {
+    } else if (remaining === 0 && useTimerStore.getState().active?.spec.kind === 'rest') {
       useTimerStore.getState().stop();
     }
+  };
+
+  const addBlock = async (kind: BlockKind) => {
+    setBlockMenuOpen(false);
+    const id = await addBlockToSession(session.id, kind);
+    if (kind === 'exercises') setPickerFor(id);
   };
 
   return (
     <View style={styles.flex}>
       <View style={styles.stats}>
         <Stat label="Volume" value={`${Math.round(volume).toLocaleString('pt-BR')} kg`} />
-        <Stat label="Séries" value={`${done.length} de ${sets.length}`} />
+        <Stat label="Séries" value={`${done.length} de ${plainSets.length}`} />
         <TouchableRipple
           style={[styles.location, { backgroundColor: theme.colors.elevation.level2 }]}
           borderless
@@ -111,29 +136,52 @@ export function StrengthSession({ session, onFinish }: Props) {
 
       <RestTimerBar sessionId={session.id} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {groups.length === 0 && (
+        {isEmpty && !session.workoutId && (
           <Card mode="outlined">
             <Card.Content style={styles.empty}>
               <Text variant="titleMedium">Treino livre</Text>
               <Text variant="bodyMedium" style={styles.muted}>
-                Adicione os exercícios conforme for fazendo. No fim, dá para salvar como rotina.
+                Adicione exercícios ou um bloco de AMRAP, EMOM ou For Time conforme for fazendo. No fim, dá para salvar
+                como rotina.
               </Text>
             </Card.Content>
           </Card>
         )}
-        {groups.map(({ position, sets: groupSets }) => (
-          <ExerciseCard
-            key={position}
-            exercise={exerciseMap.get(groupSets[0].exerciseId)}
-            sets={groupSets}
-            session={session}
-            locationName={location?.name}
-            onToggle={onToggle}
-          />
-        ))}
-        <Button icon="plus" mode="contained" onPress={() => setPickerOpen(true)} contentStyle={styles.bigBtn}>
-          Adicionar exercício
-        </Button>
+        {blocks.map((block) => {
+          const blockSets = setsByBlock.get(block.id) ?? [];
+          if (block.kind !== 'exercises') return <WodBlockCard key={block.id} block={block} movements={blockSets} />;
+          const groups = new Map<number, SessionSet[]>();
+          for (const s of blockSets) groups.set(s.position, [...(groups.get(s.position) ?? []), s]);
+          return (
+            <View key={block.id} style={styles.block}>
+              {[...groups.entries()].map(([position, groupSets]) => (
+                <ExerciseCard
+                  key={position}
+                  exercise={exerciseMap.get(groupSets[0].exerciseId)}
+                  sets={groupSets}
+                  session={session}
+                  locationName={location?.name}
+                  onToggle={onToggle}
+                />
+              ))}
+              <Button icon="plus" mode="contained-tonal" onPress={() => setPickerFor(block.id)}>
+                Adicionar exercício
+              </Button>
+            </View>
+          );
+        })}
+        <Menu
+          visible={blockMenuOpen}
+          onDismiss={() => setBlockMenuOpen(false)}
+          anchor={
+            <Button icon="plus-box-multiple-outline" mode="outlined" onPress={() => setBlockMenuOpen(true)} contentStyle={styles.bigBtn}>
+              Adicionar bloco
+            </Button>
+          }>
+          {BLOCK_KINDS.map((k) => (
+            <Menu.Item key={k} leadingIcon={BLOCK_KIND_ICON[k]} title={BLOCK_KIND_LABEL[k]} onPress={() => addBlock(k)} />
+          ))}
+        </Menu>
       </ScrollView>
       <View style={styles.footer}>
         <Button mode="contained" icon="flag-checkered" onPress={onFinish} contentStyle={styles.bigBtn} style={styles.flex}>
@@ -142,9 +190,9 @@ export function StrengthSession({ session, onFinish }: Props) {
       </View>
 
       <ExercisePicker
-        visible={pickerOpen}
-        onDismiss={() => setPickerOpen(false)}
-        onPick={(exerciseId) => addExerciseToSession(session.id, exerciseId)}
+        visible={pickerFor != null}
+        onDismiss={() => setPickerFor(null)}
+        onPick={(exerciseId) => pickerFor && addExerciseToSession(session.id, pickerFor, exerciseId)}
       />
       <LocationPicker
         visible={locationOpen}
@@ -432,6 +480,7 @@ function SetRow({
 
 const styles = StyleSheet.create({
   empty: { gap: 4 },
+  block: { gap: 12 },
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center' },
   noMargin: { margin: 0 },

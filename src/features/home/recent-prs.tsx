@@ -4,6 +4,7 @@ import { Card, Icon, Text, useTheme } from 'react-native-paper';
 
 import { useMachineMap } from '@/features/places/queries';
 import { estimateOneRepMax } from '@/features/stats/prs';
+import { describeBlockFormat } from '@/features/workouts/blocks';
 import { describeResult } from '@/features/workouts/describe';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatWeight } from '@/lib/format';
@@ -27,13 +28,13 @@ export function RecentPrs({ now }: { now: number }) {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
         {prs.map((pr) => {
           const isSet = pr.kind === 'set';
-          const title = isSet ? (exerciseMap.get(pr.exerciseId)?.name ?? 'Exercício') : pr.session.name;
-          const value = isSet ? `${formatWeight(pr.weight)} × ${pr.reps}` : (describeResult(pr.session) ?? '—');
+          const title = isSet ? (exerciseMap.get(pr.exerciseId)?.name ?? 'Exercício') : pr.sessionName;
+          const value = isSet ? `${formatWeight(pr.weight)} × ${pr.reps}` : (describeResult(pr.block) ?? '—');
           const detail = isSet
             ? pr.machineId
               ? (machineMap.get(pr.machineId)?.name ?? 'Máquina')
               : `1RM est. ${formatWeight(Math.round(estimateOneRepMax(pr.weight, pr.reps)))}`
-            : 'WOD';
+            : (describeBlockFormat(pr.block) ?? 'WOD');
           return (
             <Card
               key={pr.key}
@@ -42,7 +43,7 @@ export function RecentPrs({ now }: { now: number }) {
               onPress={() =>
                 isSet
                   ? router.push({ pathname: '/exercise/[id]', params: { id: pr.exerciseId } })
-                  : router.push({ pathname: '/history/[id]', params: { id: pr.session.id } })
+                  : router.push({ pathname: '/history/[id]', params: { id: pr.sessionId } })
               }>
               <Card.Content style={styles.cardContent}>
                 <View style={styles.when}>

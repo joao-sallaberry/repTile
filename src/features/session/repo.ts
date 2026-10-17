@@ -1,10 +1,26 @@
 import { and, asc, desc, eq, gt, isNotNull, isNull, max, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db/client';
-import { sessions, sessionSets, type SessionSet, type SetType } from '@/db/schema';
+import {
+  sessionBlocks,
+  sessions,
+  sessionSets,
+  workoutBlocks,
+  type BlockKind,
+  type SessionSet,
+  type SetType,
+} from '@/db/schema';
 import { linkMachineToExercise, linkMachineToLocation } from '@/features/places/repo';
 import { isNewPR, isWodPR, type PerformedSet } from '@/features/stats/prs';
-import { getWorkoutDraft, newSet, saveWorkout, type WorkoutItemDraft } from '@/features/workouts/repo';
+import { cleanBlockConfig, defaultBlockConfig, isWod, type BlockConfig } from '@/features/workouts/blocks';
+import {
+  emptyBlock,
+  getWorkoutDraft,
+  newSet,
+  saveWorkout,
+  type BlockDraft,
+  type WorkoutItemDraft,
+} from '@/features/workouts/repo';
 import { createdFields, touched } from '@/lib/ids';
 
 import { countsTowardStats, pairPrevious } from './sets';
@@ -12,7 +28,7 @@ import { countsTowardStats, pairPrevious } from './sets';
 export type PerformedSetRow = PerformedSet & { type: SetType; machineId: string | null; setIndex: number };
 
 /**
- * Completed sets of an exercise in strength sessions, oldest first.
+ * Completed sets of an exercise in exercises blocks (not WODs), oldest first.
  * `machineId`: `undefined` = any machine; `null` = only sets done without a machine.
  */
 export async function performedSets(
@@ -31,13 +47,14 @@ export async function performedSets(
     })
     .from(sessionSets)
     .innerJoin(sessions, eq(sessions.id, sessionSets.sessionId))
+    .innerJoin(sessionBlocks, eq(sessionBlocks.id, sessionSets.sessionBlockId))
     .where(
       and(
         eq(sessionSets.exerciseId, exerciseId),
         isNotNull(sessionSets.completedAt),
         isNull(sessionSets.deletedAt),
         isNull(sessions.deletedAt),
-        eq(sessions.type, 'strength'),
+        eq(sessionBlocks.kind, 'exercises'),
         opts.machineId === undefined
           ? undefined
           : opts.machineId === null
@@ -63,14 +80,23 @@ export async function previousSessionSets(
   return all.filter((r) => r.sessionId === last.sessionId).sort((a, b) => a.setIndex - b.setIndex);
 }
 
+const configOf = (b: BlockConfig): BlockConfig => {
+  const { kind, durationSec, intervalSec, rounds, timeCapSec, alternate } = cleanBlockConfig(b);
+  return { kind, durationSec, intervalSec, rounds, timeCapSec, alternate };
+};
+
 export async function startSession(workoutId: string, fallbackLocationId: string | null = null): Promise<string> {
   const w = await getWorkoutDraft(workoutId);
   if (!w) throw new Error('Treino não encontrado');
 
   // Pre-fill each set from the routine target, else from the same set last time on the same machine.
   const previous = await Promise.all(
-    w.items.map((item) =>
-      w.type === 'strength' ? previousSessionSets(item.exerciseId, item.machineId) : Promise.resolve([]),
+    w.blocks.map((b) =>
+      Promise.all(
+        b.items.map((item) =>
+          b.kind === 'exercises' ? previousSessionSets(item.exerciseId, item.machineId) : Promise.resolve([]),
+        ),
+      ),
     ),
   );
 
@@ -80,101 +106,160 @@ export async function startSession(workoutId: string, fallbackLocationId: string
       ...session,
       workoutId,
       name: w.name,
-      type: w.type,
-      durationSec: w.durationSec,
-      intervalSec: w.intervalSec,
-      rounds: w.rounds,
-      timeCapSec: w.timeCapSec,
       locationId: w.locationId ?? fallbackLocationId,
       startedAt: Date.now(),
-      resultRounds: w.type === 'amrap' ? 0 : null,
-      resultReps: w.type === 'amrap' ? 0 : null,
     });
 
-    for (const [position, item] of w.items.entries()) {
-      const base = { sessionId: session.id, exerciseId: item.exerciseId, machineId: item.machineId, position, restSec: item.restSec };
-      if (w.type !== 'strength') {
-        const { reps, weight, durationSec, distanceM, calories } = item;
-        await tx.insert(sessionSets).values({ ...createdFields(), ...base, setIndex: 0, reps, weight, durationSec, distanceM, calories });
-        continue;
-      }
-      const paired = pairPrevious(item.sets, previous[position]);
-      for (const [setIndex, target] of item.sets.entries()) {
-        const prev = paired[setIndex];
-        await tx.insert(sessionSets).values({
-          ...createdFields(),
-          ...base,
-          setIndex,
-          type: target.type,
-          reps: target.reps ?? prev?.reps ?? null,
-          // A 0 kg target means "no target": use last time's load.
-          weight: target.weight || prev?.weight || 0,
-          durationSec: target.durationSec,
-          distanceM: target.distanceM,
-          calories: target.calories,
-        });
+    // Positions are unique across the session's blocks (they group the sets of one exercise).
+    let position = 0;
+    for (const [blockPos, block] of w.blocks.entries()) {
+      const sessionBlock = createdFields();
+      await tx.insert(sessionBlocks).values({
+        ...sessionBlock,
+        ...configOf(block),
+        sessionId: session.id,
+        workoutBlockId: block.id ?? null,
+        position: blockPos,
+        notes: block.notes,
+        resultRounds: block.kind === 'amrap' ? 0 : null,
+        resultReps: block.kind === 'amrap' ? 0 : null,
+      });
+
+      for (const [itemPos, item] of block.items.entries()) {
+        const base = {
+          sessionId: session.id,
+          sessionBlockId: sessionBlock.id,
+          exerciseId: item.exerciseId,
+          machineId: item.machineId,
+          position: position++,
+          restSec: item.restSec,
+        };
+        if (isWod(block.kind)) {
+          const { reps, weight, durationSec, distanceM, calories } = item;
+          await tx.insert(sessionSets).values({ ...createdFields(), ...base, setIndex: 0, reps, weight, durationSec, distanceM, calories });
+          continue;
+        }
+        const paired = pairPrevious(item.sets, previous[blockPos][itemPos]);
+        for (const [setIndex, target] of item.sets.entries()) {
+          const prev = paired[setIndex];
+          await tx.insert(sessionSets).values({
+            ...createdFields(),
+            ...base,
+            setIndex,
+            type: target.type,
+            reps: target.reps ?? prev?.reps ?? null,
+            // A 0 kg target means "no target": use last time's load.
+            weight: target.weight || prev?.weight || 0,
+            durationSec: target.durationSec,
+            distanceM: target.distanceM,
+            calories: target.calories,
+          });
+        }
       }
     }
     return session.id;
   });
 }
 
-/** Starts a strength session with no routine ("Treino livre"); exercises are added during it. */
+/** Starts a session with no routine ("Treino livre") and one empty exercises block. */
 export async function startEmptySession(locationId: string | null = null): Promise<string> {
   const session = createdFields();
-  await db.insert(sessions).values({
-    ...session,
-    workoutId: null,
-    name: 'Treino livre',
-    type: 'strength',
-    locationId,
-    startedAt: Date.now(),
+  await db.transaction(async (tx) => {
+    await tx.insert(sessions).values({ ...session, workoutId: null, name: 'Treino livre', locationId, startedAt: Date.now() });
+    await tx
+      .insert(sessionBlocks)
+      .values({ ...createdFields(), ...defaultBlockConfig('exercises'), sessionId: session.id, position: 0 });
   });
   return session.id;
 }
 
-/** Creates a strength routine from what was done in a session (e.g. after a "Treino livre"). */
+/** Appends a block (exercises or a WOD with default settings) to an in-progress session. */
+export async function addBlockToSession(sessionId: string, kind: BlockKind, config: Partial<BlockConfig> = {}) {
+  const [{ maxPos }] = await db
+    .select({ maxPos: max(sessionBlocks.position) })
+    .from(sessionBlocks)
+    .where(and(eq(sessionBlocks.sessionId, sessionId), isNull(sessionBlocks.deletedAt)));
+  const row = {
+    ...createdFields(),
+    ...configOf({ ...defaultBlockConfig(kind), ...config, kind }),
+    sessionId,
+    position: (maxPos ?? -1) + 1,
+    resultRounds: kind === 'amrap' ? 0 : null,
+    resultReps: kind === 'amrap' ? 0 : null,
+  };
+  await db.insert(sessionBlocks).values(row);
+  return row.id;
+}
+
+/** Updates a session block's settings (e.g. a WOD added during a "Treino livre"). */
+export async function updateSessionBlock(id: string, config: Partial<BlockConfig>) {
+  await db.update(sessionBlocks).set({ ...config, ...touched() }).where(eq(sessionBlocks.id, id));
+}
+
+/** Removes a block and its sets from an in-progress session. */
+export async function removeSessionBlock(id: string) {
+  const now = Date.now();
+  await db.transaction(async (tx) => {
+    await tx.update(sessionBlocks).set({ deletedAt: now, ...touched() }).where(eq(sessionBlocks.id, id));
+    await tx
+      .update(sessionSets)
+      .set({ deletedAt: now, ...touched() })
+      .where(and(eq(sessionSets.sessionBlockId, id), isNull(sessionSets.deletedAt)));
+  });
+}
+
+/** Creates a routine from what was done in a session (e.g. after a "Treino livre"). */
 export async function saveSessionAsRoutine(sessionId: string, name: string): Promise<string> {
+  const blocks = await db.query.sessionBlocks.findMany({
+    where: and(eq(sessionBlocks.sessionId, sessionId), isNull(sessionBlocks.deletedAt)),
+    orderBy: asc(sessionBlocks.position),
+  });
   const rows = await db.query.sessionSets.findMany({
     where: and(eq(sessionSets.sessionId, sessionId), isNull(sessionSets.deletedAt)),
     orderBy: [asc(sessionSets.position), asc(sessionSets.setIndex)],
   });
-  const byPosition = new Map<number, WorkoutItemDraft>();
-  for (const r of rows) {
-    let item = byPosition.get(r.position);
-    if (!item) {
-      item = {
-        exerciseId: r.exerciseId,
-        machineId: r.machineId,
-        sets: [],
-        reps: null,
-        weight: null,
-        durationSec: null,
-        distanceM: null,
-        calories: null,
-        restSec: r.restSec,
-        notes: null,
-      };
-      byPosition.set(r.position, item);
+  const pairs = blocks.map((b) => {
+    const byPosition = new Map<number, WorkoutItemDraft>();
+    for (const r of rows.filter((x) => x.sessionBlockId === b.id)) {
+      let item = byPosition.get(r.position);
+      const { reps, weight, durationSec, distanceM, calories } = r;
+      if (!item) {
+        item = {
+          exerciseId: r.exerciseId,
+          machineId: r.machineId,
+          sets: [],
+          // WOD movements keep their per-round amounts on the item.
+          ...(isWod(b.kind) ? { reps, weight, durationSec, distanceM, calories } : emptyAmounts),
+          restSec: r.restSec,
+          notes: null,
+        };
+        byPosition.set(r.position, item);
+      }
+      if (!isWod(b.kind)) item.sets.push(newSet(r.type, { reps, weight, durationSec, distanceM, calories }));
     }
-    const { reps, weight, durationSec, distanceM, calories } = r;
-    item.sets.push(newSet(r.type, { reps, weight, durationSec, distanceM, calories }));
-  }
-  const id = await saveWorkout(null, {
-    name,
-    type: 'strength',
-    notes: null,
-    durationSec: null,
-    intervalSec: null,
-    rounds: null,
-    timeCapSec: null,
-    locationId: null,
-    items: [...byPosition.values()],
+    const draft: BlockDraft = { ...emptyBlock(b.kind), ...configOf(b), notes: b.notes, items: [...byPosition.values()] };
+    return { block: b, draft };
   });
-  // The session now counts as a run of the new routine (rotation, history).
-  await db.update(sessions).set({ workoutId: id, name, ...touched() }).where(eq(sessions.id, sessionId));
+  const kept = pairs.filter((p) => p.draft.items.length);
+  const id = await saveWorkout(null, { name, notes: null, locationId: null, blocks: kept.map((p) => p.draft) });
+
+  // The session now counts as a run of the new routine (rotation, history, WOD PRs).
+  const created = await db.query.workoutBlocks.findMany({
+    where: and(eq(workoutBlocks.workoutId, id), isNull(workoutBlocks.deletedAt)),
+    orderBy: asc(workoutBlocks.position),
+  });
+  await db.transaction(async (tx) => {
+    await tx.update(sessions).set({ workoutId: id, name, ...touched() }).where(eq(sessions.id, sessionId));
+    for (const [i, { block }] of kept.entries()) {
+      if (created[i]) {
+        await tx.update(sessionBlocks).set({ workoutBlockId: created[i].id, ...touched() }).where(eq(sessionBlocks.id, block.id));
+      }
+    }
+  });
   return id;
 }
+
+const emptyAmounts = { reps: null, weight: null, durationSec: null, distanceM: null, calories: null };
 
 export async function getActiveSession() {
   return db.query.sessions.findFirst({
@@ -283,21 +368,26 @@ export async function addSet(sessionId: string, position: number, type: SetType 
   });
 }
 
-/** Appends a new exercise to an in-progress session. */
-export async function addExerciseToSession(sessionId: string, exerciseId: string) {
+/** Appends a new exercise to a block of an in-progress session. */
+export async function addExerciseToSession(sessionId: string, sessionBlockId: string, exerciseId: string) {
+  const block = await db.query.sessionBlocks.findFirst({ where: eq(sessionBlocks.id, sessionBlockId) });
   const [{ maxPos }] = await db
     .select({ maxPos: max(sessionSets.position) })
     .from(sessionSets)
     .where(eq(sessionSets.sessionId, sessionId));
+  const wod = block ? isWod(block.kind) : false;
   await db.insert(sessionSets).values({
     ...createdFields(),
     sessionId,
+    sessionBlockId,
     exerciseId,
     position: (maxPos ?? -1) + 1,
     setIndex: 0,
     reps: 10,
-    weight: (await previousSessionSets(exerciseId, null)).find((p) => countsTowardStats(p.type))?.weight ?? 0,
-    restSec: 90,
+    weight: wod
+      ? null
+      : ((await previousSessionSets(exerciseId, null)).find((p) => countsTowardStats(p.type))?.weight ?? 0),
+    restSec: wod ? null : 90,
   });
 }
 
@@ -313,54 +403,69 @@ export async function removeSet(id: string) {
   await db.update(sessionSets).set({ deletedAt: Date.now(), ...touched() }).where(eq(sessionSets.id, id));
 }
 
-export async function updateWodProgress(id: string, values: { resultRounds?: number; resultReps?: number }) {
-  await db.update(sessions).set({ ...values, ...touched() }).where(eq(sessions.id, id));
+/** AMRAP round counter, saved on every tap. */
+export async function updateWodProgress(sessionBlockId: string, values: { resultRounds?: number; resultReps?: number }) {
+  await db.update(sessionBlocks).set({ ...values, ...touched() }).where(eq(sessionBlocks.id, sessionBlockId));
+}
+
+export type BlockResult = {
+  resultTimeSec?: number | null;
+  resultRounds?: number | null;
+  resultReps?: number | null;
+  rx?: boolean;
+};
+
+/** Saves a WOD block's result: its movements count as done, and it may be a PR for the routine block. */
+export async function finishBlock(sessionBlockId: string, result: BlockResult) {
+  const finishedAt = Date.now();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sessionBlocks)
+      .set({ ...result, finishedAt, ...touched() })
+      .where(eq(sessionBlocks.id, sessionBlockId));
+    await tx
+      .update(sessionSets)
+      .set({ completedAt: finishedAt, ...touched() })
+      .where(and(eq(sessionSets.sessionBlockId, sessionBlockId), isNull(sessionSets.completedAt)));
+    const b = await tx.query.sessionBlocks.findFirst({ where: eq(sessionBlocks.id, sessionBlockId) });
+    if (!b || !isWod(b.kind) || !b.workoutBlockId) return;
+    const previous = await tx
+      .select({ block: sessionBlocks })
+      .from(sessionBlocks)
+      .innerJoin(sessions, eq(sessions.id, sessionBlocks.sessionId))
+      .where(
+        and(
+          eq(sessionBlocks.workoutBlockId, b.workoutBlockId),
+          ne(sessionBlocks.id, b.id),
+          isNotNull(sessionBlocks.finishedAt),
+          isNull(sessionBlocks.deletedAt),
+          isNull(sessions.deletedAt),
+        ),
+      );
+    const isPr = isWodPR(b.kind, b, previous.map((r) => r.block));
+    await tx.update(sessionBlocks).set({ isPr, ...touched() }).where(eq(sessionBlocks.id, b.id));
+  });
 }
 
 export type SessionResult = {
   /** Adjusted start/end times (ms); default: keep the start, end now. */
   startedAt?: number;
   finishedAt?: number;
-  resultTimeSec?: number | null;
-  resultRounds?: number | null;
-  resultReps?: number | null;
-  rx?: boolean;
   notes?: string | null;
 };
 
 export async function finishSession(id: string, { finishedAt = Date.now(), ...result }: SessionResult = {}) {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(sessions)
-      .set({ ...result, finishedAt, ...touched() })
-      .where(eq(sessions.id, id));
-    // In WODs, the movements are recorded as done when the session finishes.
-    const s = await tx.query.sessions.findFirst({ where: eq(sessions.id, id) });
-    if (s && s.type !== 'strength') {
-      await tx
-        .update(sessionSets)
-        .set({ completedAt: finishedAt, ...touched() })
-        .where(and(eq(sessionSets.sessionId, id), isNull(sessionSets.completedAt)));
-      if (s.workoutId) {
-        const previous = await tx.query.sessions.findMany({
-          where: and(
-            eq(sessions.workoutId, s.workoutId),
-            ne(sessions.id, id),
-            isNotNull(sessions.finishedAt),
-            isNull(sessions.deletedAt),
-          ),
-        });
-        const isPr = isWodPR(s.type, s, previous);
-        if (isPr) await tx.update(sessions).set({ isPr, ...touched() }).where(eq(sessions.id, id));
-      }
-    }
-  });
+  await db.update(sessions).set({ ...result, finishedAt, ...touched() }).where(eq(sessions.id, id));
 }
 
 export async function deleteSession(id: string) {
   const now = Date.now();
   await db.transaction(async (tx) => {
     await tx.update(sessions).set({ deletedAt: now, ...touched() }).where(eq(sessions.id, id));
+    await tx
+      .update(sessionBlocks)
+      .set({ deletedAt: now, ...touched() })
+      .where(and(eq(sessionBlocks.sessionId, id), isNull(sessionBlocks.deletedAt)));
     await tx
       .update(sessionSets)
       .set({ deletedAt: now, ...touched() })

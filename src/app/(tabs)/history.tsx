@@ -7,9 +7,7 @@ import { Appbar, List, Text } from 'react-native-paper';
 import { db } from '@/db/client';
 import { sessions, type Session } from '@/db/schema';
 import { useLocations } from '@/features/places/queries';
-import { describeResult } from '@/features/workouts/describe';
 import { formatDate, formatDuration } from '@/lib/format';
-import { WORKOUT_TYPE_ICON, WORKOUT_TYPE_LABEL } from '@/theme';
 
 const monthFmt = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' });
 
@@ -51,14 +49,13 @@ export default function HistoryScreen() {
             title={item.name}
             description={[
               formatDate(item.startedAt),
-              describeResult(item) ?? WORKOUT_TYPE_LABEL[item.type],
               item.finishedAt ? formatDuration((item.finishedAt - item.startedAt) / 1000) : null,
             ]
               .filter(Boolean)
               .join(' · ')
               .concat(`\n${(item.locationId && locationName.get(item.locationId)) || 'Sem local'}`)}
             descriptionNumberOfLines={2}
-            left={(p) => <List.Icon {...p} icon={WORKOUT_TYPE_ICON[item.type]} />}
+            left={(p) => <List.Icon {...p} icon="calendar-check" />}
             onPress={() => router.push({ pathname: '/history/[id]', params: { id: item.id } })}
           />
         )}

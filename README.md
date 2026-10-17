@@ -3,9 +3,10 @@
 Android app (React Native + Expo) to plan and run gym and CrossFit workouts.
 
 - **Home**: this week's trained days (Monday to Sunday) against an optional weekly goal, the next routine in your rotation, a "Treino livre" (empty workout, can be saved as a routine at the end), your routines with one-tap start, recent PRs and the last workouts. First use offers ready-made templates (ABC, Full body, Fran, Cindy).
-- **Strength** (Hevy-style set log): warm-up, normal, drop and to-failure sets, each with its own weight and reps; a "Previous" column with what you did last time; automatic rest timer between sets. Start and end times can be adjusted when finishing.
+- **Blocks**: a workout is a list of blocks — plain exercises and timed WOD blocks (AMRAP, EMOM — also alternating, one movement per interval — and For Time) in any mix, done in any order. Blocks can also be added during a workout.
+- **Exercises** (Hevy-style set log): warm-up, normal, drop and to-failure sets, each with its own weight and reps; a "Previous" column with what you did last time; automatic rest timer between sets. Start and end times can be adjusted when finishing.
 - **Locations and machines**: a workout can belong to a gym or box; an exercise can be done on a specific machine. Machines are optional, can be shared by several locations, and keep their own load history and PRs. Each machine can have a low-res photo (camera or gallery) to recognise it at the gym.
-- **WODs**: AMRAP, EMOM and For Time, with a full-screen timer and lead-in countdown.
+- **WOD blocks**: full-screen timer with lead-in countdown, round counter (AMRAP), current/next movement (alternating EMOM), and a result per block with PRs.
 - **Notifications**: alerts when a rest or WOD ends, even with the screen off or the app killed. The needed permissions are asked on a welcome screen at first launch and can be reviewed in Settings.
 - **History and PRs**: max weight, estimated 1RM, volume and a progression chart per exercise (filterable by machine). Warm-up sets don't count towards volume or PRs.
 
@@ -82,7 +83,7 @@ src/app/                 # screens (expo-router)
 src/db/                  # Drizzle schema, migrations and seed exercises
 src/features/timer/      # timer engine, beeps and notifications
 src/features/home/       # home screen sections, week stats and the weekly goal
-src/features/session/    # running workouts (strength and WOD)
+src/features/session/    # running workouts (exercise blocks and WOD blocks)
 src/features/stats/      # PR calculations
 src/features/places/     # locations, machines (and their photos) and the current location
 src/features/workouts/   # workout editing

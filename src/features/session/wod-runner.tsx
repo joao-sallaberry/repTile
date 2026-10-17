@@ -3,46 +3,38 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, Divider, IconButton, List, ProgressBar, Switch, Text, TextInput, useTheme } from 'react-native-paper';
+import { Button, Card, Divider, IconButton, List, ProgressBar, Switch, Text, useTheme } from 'react-native-paper';
 
 import { DurationField } from '@/components/duration-field';
 import { NumberField } from '@/components/number-field';
 import { db } from '@/db/client';
-import { sessionSets, type Session } from '@/db/schema';
-import type { TimerSpec } from '@/features/timer/engine';
+import { sessionSets, type SessionBlock, type SessionSet } from '@/db/schema';
 import { startTimer } from '@/features/timer/start';
 import { useTimerStore } from '@/features/timer/store';
 import { useTimerSnapshot } from '@/features/timer/use-timer-snapshot';
-import { describeItem, describeWorkoutFormat } from '@/features/workouts/describe';
+import { blockTimerSpec, describeBlockFormat, emomMovementIndex } from '@/features/workouts/blocks';
+import { describeItem } from '@/features/workouts/describe';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDuration } from '@/lib/format';
 
-import { updateWodProgress, type SessionResult } from './repo';
+import { updateWodProgress, type BlockResult } from './repo';
 
 const LEAD_IN_SEC = 10;
 
-export function wodSpec(s: Session): TimerSpec {
-  switch (s.type) {
-    case 'amrap':
-      return { kind: 'amrap', durationSec: s.durationSec ?? 600 };
-    case 'emom':
-      return { kind: 'emom', intervalSec: s.intervalSec ?? 60, rounds: s.rounds ?? 10 };
-    default:
-      return { kind: 'for_time', timeCapSec: s.timeCapSec };
-  }
-}
+type Snap = NonNullable<ReturnType<typeof useTimerSnapshot>>;
 
-type Props = { session: Session; onSave: (result: SessionResult) => void };
-
-export function WodSession({ session, onSave }: Props) {
+/** Runs one WOD block of a session: lead-in, timer, round counter and result. */
+export function WodRunner({ block, onSave }: { block: SessionBlock; onSave: (result: BlockResult) => void }) {
   const active = useTimerStore((s) => s.active);
-  const timer = active && active.sessionId === session.id && active.spec.kind !== 'rest' ? active : null;
+  const timer = active && active.blockId === block.id ? active : null;
   const snap = useTimerSnapshot(timer);
   const [finishedTimeSec, setFinishedTimeSec] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
+  const movements = useMovements(block.id);
+  const format = describeBlockFormat(block) ?? '';
 
   const start = () =>
-    startTimer({ sessionId: session.id, label: session.name, spec: wodSpec(session), leadInSec: LEAD_IN_SEC });
+    startTimer({ sessionId: block.sessionId, blockId: block.id, label: format, spec: blockTimerSpec(block), leadInSec: LEAD_IN_SEC });
 
   const finishForTime = () => {
     if (snap) setFinishedTimeSec(Math.round(snap.elapsedSec));
@@ -56,7 +48,7 @@ export function WodSession({ session, onSave }: Props) {
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {timer && snap && !resultVisible ? (
-        <RunningTimer session={session} snap={snap} paused={timer.clock.pausedAt != null} onFinishForTime={finishForTime} />
+        <RunningTimer block={block} snap={snap} paused={timer.clock.pausedAt != null} movements={movements} onFinishForTime={finishForTime} />
       ) : !resultVisible ? (
         <Button mode="contained" icon="play" contentStyle={styles.bigBtn} labelStyle={styles.bigLabel} onPress={start}>
           Iniciar ({LEAD_IN_SEC}s para começar)
@@ -65,9 +57,9 @@ export function WodSession({ session, onSave }: Props) {
 
       {resultVisible && (
         <ResultForm
-          session={session}
+          block={block}
           initialTimeSec={finishedTimeSec}
-          timeCapped={timerDone && session.type === 'for_time'}
+          timeCapped={timerDone && block.kind === 'for_time'}
           onCancel={
             timerDone
               ? undefined
@@ -76,11 +68,14 @@ export function WodSession({ session, onSave }: Props) {
                   useTimerStore.getState().resume();
                 }
           }
-          onSave={onSave}
+          onSave={(r) => {
+            useTimerStore.getState().stop();
+            onSave(r);
+          }}
         />
       )}
 
-      <Movements session={session} />
+      <Movements block={block} movements={movements} />
 
       {!resultVisible && (
         <Button mode="text" onPress={() => setShowResult(true)}>
@@ -91,27 +86,48 @@ export function WodSession({ session, onSave }: Props) {
   );
 }
 
+function useMovements(blockId: string) {
+  const { data } = useLiveQuery(
+    db
+      .select()
+      .from(sessionSets)
+      .where(and(eq(sessionSets.sessionBlockId, blockId), isNull(sessionSets.deletedAt)))
+      .orderBy(asc(sessionSets.position)),
+    [blockId],
+  );
+  return data;
+}
+
 function RunningTimer({
-  session,
+  block,
   snap,
   paused,
+  movements,
   onFinishForTime,
 }: {
-  session: Session;
-  snap: NonNullable<ReturnType<typeof useTimerSnapshot>>;
+  block: SessionBlock;
+  snap: Snap;
   paused: boolean;
+  movements: SessionSet[];
   onFinishForTime: () => void;
 }) {
   useKeepAwake();
   const theme = useTheme();
+  const exerciseMap = useExerciseMap();
   const store = useTimerStore.getState();
   const leadIn = snap.phase === 'lead_in';
+
+  // Alternating EMOM: the movement of the current interval (the first one during the lead-in).
+  const idx = emomMovementIndex(leadIn ? 1 : (snap.round ?? 1), movements.length, block.alternate);
+  const current = idx != null ? movements[idx] : undefined;
+  const next = idx != null && movements.length > 1 ? movements[(idx + 1) % movements.length] : undefined;
+  const label = (m: SessionSet) => `${exerciseMap.get(m.exerciseId)?.name ?? '—'} · ${describeItem(m, block.kind)}`;
 
   const phaseLabel = leadIn
     ? 'Prepare-se'
     : snap.round != null
-      ? `Round ${snap.round} de ${snap.roundCount}`
-      : session.type === 'amrap'
+      ? `Intervalo ${snap.round} de ${snap.roundCount}`
+      : block.kind === 'amrap'
         ? 'Restante'
         : 'Tempo';
 
@@ -122,24 +138,39 @@ function RunningTimer({
         <Text style={[styles.timerText, { color: leadIn ? theme.colors.primary : theme.colors.onSurface }]}>
           {leadIn ? snap.displaySec : formatDuration(snap.displaySec)}
         </Text>
-        {snap.totalSec != null && !leadIn && (
-          <ProgressBar progress={snap.progress ?? 0} style={styles.progress} />
+        {snap.totalSec != null && !leadIn && <ProgressBar progress={snap.progress ?? 0} style={styles.progress} />}
+        {current && (
+          <View style={styles.now}>
+            <Text variant="labelMedium" style={styles.muted}>
+              {leadIn ? 'PRIMEIRO' : 'AGORA'}
+            </Text>
+            <Text variant="headlineSmall" style={styles.center}>
+              {label(current)}
+            </Text>
+            {next && (
+              <Text variant="bodyMedium" style={styles.muted}>
+                Depois: {label(next)}
+              </Text>
+            )}
+          </View>
         )}
-        {session.type === 'emom' && !leadIn && (
-          <Text variant="bodyMedium">Total: {formatDuration(snap.elapsedSec)} / {formatDuration(snap.totalSec ?? 0)}</Text>
+        {block.kind === 'emom' && !leadIn && (
+          <Text variant="bodyMedium">
+            Total: {formatDuration(snap.elapsedSec)} / {formatDuration(snap.totalSec ?? 0)}
+          </Text>
         )}
-        {session.type === 'for_time' && session.timeCapSec != null && (
-          <Text variant="bodyMedium">Time cap {formatDuration(session.timeCapSec)}</Text>
+        {block.kind === 'for_time' && block.timeCapSec != null && (
+          <Text variant="bodyMedium">Time cap {formatDuration(block.timeCapSec)}</Text>
         )}
       </Card.Content>
 
-      {session.type === 'amrap' && !leadIn && <RoundCounter session={session} />}
+      {block.kind === 'amrap' && !leadIn && <RoundCounter block={block} />}
 
       <Card.Actions>
         <Button icon={paused ? 'play' : 'pause'} onPress={store.togglePause}>
           {paused ? 'Retomar' : 'Pausar'}
         </Button>
-        {session.type === 'for_time' && !leadIn && (
+        {block.kind === 'for_time' && !leadIn && (
           <Button mode="contained" icon="flag-checkered" onPress={onFinishForTime}>
             Terminei!
           </Button>
@@ -150,25 +181,21 @@ function RunningTimer({
 }
 
 /** AMRAP round counter, saved to the database on every tap. */
-function RoundCounter({ session }: { session: Session }) {
-  const rounds = session.resultRounds ?? 0;
+function RoundCounter({ block }: { block: SessionBlock }) {
+  const rounds = block.resultRounds ?? 0;
   return (
     <View style={styles.counter}>
       <IconButton
         icon="minus"
         mode="outlined"
         disabled={rounds === 0}
-        onPress={() => updateWodProgress(session.id, { resultRounds: rounds - 1 })}
+        onPress={() => updateWodProgress(block.id, { resultRounds: rounds - 1 })}
       />
       <View style={styles.counterText}>
         <Text variant="displaySmall">{rounds}</Text>
         <Text variant="labelMedium">rounds</Text>
       </View>
-      <Button
-        mode="contained"
-        icon="plus"
-        contentStyle={styles.bigBtn}
-        onPress={() => updateWodProgress(session.id, { resultRounds: rounds + 1 })}>
+      <Button mode="contained" icon="plus" contentStyle={styles.bigBtn} onPress={() => updateWodProgress(block.id, { resultRounds: rounds + 1 })}>
         Round
       </Button>
     </View>
@@ -176,56 +203,49 @@ function RoundCounter({ session }: { session: Session }) {
 }
 
 function ResultForm({
-  session,
+  block,
   initialTimeSec,
   timeCapped,
   onCancel,
   onSave,
 }: {
-  session: Session;
+  block: SessionBlock;
   initialTimeSec: number | null;
   timeCapped: boolean;
   onCancel?: () => void;
-  onSave: (r: SessionResult) => void;
+  onSave: (r: BlockResult) => void;
 }) {
   const [timeSec, setTimeSec] = useState<number | null>(timeCapped ? null : initialTimeSec);
-  const [rounds, setRounds] = useState<number | null>(
-    session.type === 'emom' ? session.rounds : (session.resultRounds ?? null),
-  );
-  const [reps, setReps] = useState<number | null>(session.resultReps ?? null);
+  const [rounds, setRounds] = useState<number | null>(block.kind === 'emom' ? block.rounds : (block.resultRounds ?? null));
+  const [reps, setReps] = useState<number | null>(block.resultReps ?? null);
   const [rx, setRx] = useState(true);
-  const [notes, setNotes] = useState('');
 
   const save = () =>
     onSave({
-      resultTimeSec: session.type === 'for_time' ? timeSec : null,
+      resultTimeSec: block.kind === 'for_time' ? timeSec : null,
       resultRounds: rounds,
-      resultReps: session.type === 'emom' ? null : reps,
+      resultReps: block.kind === 'emom' ? null : reps,
       rx,
-      notes: notes.trim() || null,
     });
 
   return (
     <Card mode="contained">
       <Card.Title title={timeCapped ? 'Time cap! Registre até onde chegou' : 'Resultado'} />
       <Card.Content style={styles.form}>
-        {session.type === 'for_time' && !timeCapped && (
+        {block.kind === 'for_time' && !timeCapped && (
           <DurationField label="Tempo final (m:ss)" value={timeSec} onChange={setTimeSec} />
         )}
-        {(session.type === 'amrap' || timeCapped) && (
+        {(block.kind === 'amrap' || timeCapped) && (
           <View style={styles.row}>
             <NumberField style={styles.flex} label="Rounds" value={rounds} onChange={setRounds} />
             <NumberField style={styles.flex} label="Reps extras" value={reps} onChange={setReps} />
           </View>
         )}
-        {session.type === 'emom' && (
-          <NumberField label="Rounds completos" value={rounds} onChange={setRounds} />
-        )}
+        {block.kind === 'emom' && <NumberField label="Intervalos completos" value={rounds} onChange={setRounds} />}
         <View style={styles.rxRow}>
           <Text variant="bodyLarge">Rx (sem adaptação)</Text>
           <Switch value={rx} onValueChange={setRx} />
         </View>
-        <TextInput mode="outlined" label="Observações" multiline value={notes} onChangeText={setNotes} />
       </Card.Content>
       <Card.Actions>
         {onCancel && <Button onPress={onCancel}>Voltar ao timer</Button>}
@@ -237,25 +257,17 @@ function ResultForm({
   );
 }
 
-function Movements({ session }: { session: Session }) {
+function Movements({ block, movements }: { block: SessionBlock; movements: SessionSet[] }) {
   const exerciseMap = useExerciseMap();
-  const { data: sets } = useLiveQuery(
-    db
-      .select()
-      .from(sessionSets)
-      .where(and(eq(sessionSets.sessionId, session.id), isNull(sessionSets.deletedAt)))
-      .orderBy(asc(sessionSets.position)),
-    [session.id],
-  );
   return (
     <Card mode="outlined">
-      <Card.Title title={describeWorkoutFormat(session)} />
-      {sets.map((s, i) => (
+      <Card.Title title={describeBlockFormat(block)} subtitle={block.alternate ? 'Um movimento por intervalo, em sequência' : undefined} />
+      {movements.map((s, i) => (
         <View key={s.id}>
           {i > 0 && <Divider />}
           <List.Item
-            title={exerciseMap.get(s.exerciseId)?.name ?? '—'}
-            description={describeItem(s, session.type) || undefined}
+            title={`${block.alternate ? `${i + 1}. ` : ''}${exerciseMap.get(s.exerciseId)?.name ?? '—'}`}
+            description={describeItem(s, block.kind) || undefined}
           />
         </View>
       ))}
@@ -271,6 +283,9 @@ const styles = StyleSheet.create({
   timerContent: { alignItems: 'center', gap: 4, paddingVertical: 16 },
   timerText: { fontSize: 88, fontWeight: '700', fontVariant: ['tabular-nums'], lineHeight: 100 },
   progress: { width: 260, height: 8, borderRadius: 4 },
+  now: { alignItems: 'center', gap: 2, marginTop: 12 },
+  center: { textAlign: 'center' },
+  muted: { opacity: 0.7 },
   counter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, paddingVertical: 8 },
   counterText: { alignItems: 'center', minWidth: 64 },
   form: { gap: 12 },

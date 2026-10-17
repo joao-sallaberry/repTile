@@ -18,6 +18,8 @@ export type ActiveTimer = {
   id: string;
   /** Workout session the timer belongs to. */
   sessionId: string | null;
+  /** WOD timers: the session block being run. */
+  blockId?: string | null;
   /** Text shown in the notification (e.g. "Descanso · Supino reto"). */
   label: string;
   spec: TimerSpec;
@@ -26,7 +28,7 @@ export type ActiveTimer = {
 
 type TimerState = {
   active: ActiveTimer | null;
-  start: (input: { sessionId: string | null; label: string; spec: TimerSpec; leadInSec?: number }) => void;
+  start: (input: { sessionId: string | null; blockId?: string | null; label: string; spec: TimerSpec; leadInSec?: number }) => void;
   pause: () => void;
   resume: () => void;
   togglePause: () => void;
@@ -42,8 +44,8 @@ export const useTimerStore = create<TimerState>()(
   persist(
     (set, get) => ({
       active: null,
-      start: ({ sessionId, label, spec, leadInSec = 0 }) =>
-        set({ active: { id: newId(), sessionId, label, spec, clock: newClock(Date.now(), leadInSec) } }),
+      start: ({ sessionId, blockId = null, label, spec, leadInSec = 0 }) =>
+        set({ active: { id: newId(), sessionId, blockId, label, spec, clock: newClock(Date.now(), leadInSec) } }),
       pause: () => {
         const a = get().active;
         if (a) set({ active: { ...a, clock: pauseClock(a.clock, Date.now()) } });

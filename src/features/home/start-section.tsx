@@ -3,16 +3,17 @@ import { Button, Card, Icon, Text, TouchableRipple, useTheme } from 'react-nativ
 
 import { beginFreeWorkout, beginRoutine } from '@/features/session/begin';
 
+import { describeShape } from '@/features/workouts/blocks';
+
 import type { RoutineRow } from './queries';
 import { nextInRotation, relativeDays } from './stats';
 
 /** "Começar": the next routine in the rotation, plus an empty "Treino livre". */
 export function StartSection({ routines, now }: { routines: RoutineRow[]; now: number }) {
   const theme = useTheme();
-  const strength = routines.filter((r) => r.type === 'strength');
   const next = nextInRotation(
-    strength,
-    new Map(strength.flatMap((r) => (r.lastDoneAt ? [[r.id, r.lastDoneAt] as const] : []))),
+    routines,
+    new Map(routines.flatMap((r) => (r.lastDoneAt ? [[r.id, r.lastDoneAt] as const] : []))),
   );
 
   return (
@@ -27,7 +28,7 @@ export function StartSection({ routines, now }: { routines: RoutineRow[]; now: n
             <View style={styles.nextText}>
               <Text variant="headlineSmall">{next.name}</Text>
               <Text variant="bodyMedium" style={styles.muted}>
-                {next.exerciseCount} {next.exerciseCount === 1 ? 'exercício' : 'exercícios'} · última vez{' '}
+                {describeShape(next.blocks)} · última vez{' '}
                 {next.lastDoneAt ? relativeDays(next.lastDoneAt, now) : 'nunca'}
               </Text>
             </View>

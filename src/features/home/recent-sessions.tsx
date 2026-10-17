@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Card, Icon, Text, useTheme } from 'react-native-paper';
 
 import { useLocations } from '@/features/places/queries';
+import { describeBlockFormat } from '@/features/workouts/blocks';
 import { describeResult } from '@/features/workouts/describe';
 
 import { useRecentSessions } from './queries';
@@ -29,10 +30,12 @@ export function RecentSessions({ limit = 5 }: { limit?: number }) {
       {recent.map((s) => {
         const date = new Date(s.startedAt);
         const duration = s.finishedAt ? formatMinutes((s.finishedAt - s.startedAt) / 1000) : null;
-        const meta =
-          s.type === 'strength'
-            ? [duration, s.volume ? formatVolume(s.volume) : null, `${s.sets} ${s.sets === 1 ? 'série' : 'séries'}`]
-            : [describeResult(s), duration];
+        const meta = [
+          duration,
+          s.volume ? formatVolume(s.volume) : null,
+          s.sets ? `${s.sets} ${s.sets === 1 ? 'série' : 'séries'}` : null,
+          ...s.wods.map((w) => [describeBlockFormat(w), w.finishedAt ? describeResult(w) : null].filter(Boolean).join(': ')),
+        ];
         const place = s.locationId ? locationName.get(s.locationId) : undefined;
         return (
           <Card key={s.id} mode="contained" onPress={() => router.push({ pathname: '/history/[id]', params: { id: s.id } })}>

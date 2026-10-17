@@ -19,8 +19,13 @@ const syncColumns = {
 export const MEASURES = ['weight_reps', 'reps', 'time', 'distance', 'calories'] as const;
 export type Measure = (typeof MEASURES)[number];
 
-export const WORKOUT_TYPES = ['strength', 'amrap', 'emom', 'for_time'] as const;
-export type WorkoutType = (typeof WORKOUT_TYPES)[number];
+/**
+ * A workout is a list of blocks (ADR 0010): plain exercises (sets, warm-ups, rest) or a
+ * timed WOD block (AMRAP, EMOM, For Time) with its own movements.
+ */
+export const BLOCK_KINDS = ['exercises', 'amrap', 'emom', 'for_time'] as const;
+export type BlockKind = (typeof BLOCK_KINDS)[number];
+export type WodKind = Exclude<BlockKind, 'exercises'>;
 
 /** Set kinds, as in Hevy: warm-up sets don't count towards volume or PRs. */
 export const SET_TYPES = ['warmup', 'normal', 'drop', 'failure'] as const;
@@ -79,8 +84,13 @@ export const exercises = sqliteTable('exercises', {
 export const workouts = sqliteTable('workouts', {
   ...syncColumns,
   name: text('name').notNull(),
-  type: text('type', { enum: WORKOUT_TYPES }).notNull(),
   notes: text('notes'),
+  locationId: text('location_id'),
+});
+
+/** WOD settings shared by routine blocks and the blocks of a session. */
+const blockConfig = {
+  kind: text('kind', { enum: BLOCK_KINDS }).notNull(),
   /** AMRAP: total duration. */
   durationSec: integer('duration_sec'),
   /** EMOM: duration of each interval. */
@@ -89,17 +99,33 @@ export const workouts = sqliteTable('workouts', {
   rounds: integer('rounds'),
   /** For Time: time cap (optional). */
   timeCapSec: integer('time_cap_sec'),
-  locationId: text('location_id'),
-});
+  /** EMOM: each interval does the next movement in turn (min 1: A, min 2: B, …) instead of all of them. */
+  alternate: integer('alternate', { mode: 'boolean' }).notNull().default(false),
+  notes: text('notes'),
+};
+
+export const workoutBlocks = sqliteTable(
+  'workout_blocks',
+  {
+    ...syncColumns,
+    workoutId: text('workout_id').notNull(),
+    position: integer('position').notNull(),
+    ...blockConfig,
+  },
+  (t) => [index('workout_blocks_workout_idx').on(t.workoutId)],
+);
 
 export const workoutItems = sqliteTable(
   'workout_items',
   {
     ...syncColumns,
     workoutId: text('workout_id').notNull(),
+    /** Block the item belongs to (always set; nullable only for the migration). */
+    blockId: text('block_id'),
     exerciseId: text('exercise_id').notNull(),
+    /** Order within the block. */
     position: integer('position').notNull(),
-    /** Strength: number of sets (mirrors the rows in `workout_item_sets`). */
+    /** Exercises blocks: number of sets (mirrors the rows in `workout_item_sets`). */
     sets: integer('sets'),
     machineId: text('machine_id'),
     reps: integer('reps'),
@@ -113,7 +139,7 @@ export const workoutItems = sqliteTable(
   (t) => [index('workout_items_workout_idx').on(t.workoutId)],
 );
 
-/** Strength: the planned target of each set of a workout item (weight/reps may vary per set). */
+/** Exercises blocks: the planned target of each set of a workout item (weight/reps may vary per set). */
 export const workoutItemSets = sqliteTable(
   'workout_item_sets',
   {
@@ -135,25 +161,36 @@ export const sessions = sqliteTable(
   {
     ...syncColumns,
     workoutId: text('workout_id'),
-    /** Snapshot of the workout name/config at the time it was performed. */
+    /** Snapshot of the workout name at the time it was performed. */
     name: text('name').notNull(),
-    type: text('type', { enum: WORKOUT_TYPES }).notNull(),
-    durationSec: integer('duration_sec'),
-    intervalSec: integer('interval_sec'),
-    rounds: integer('rounds'),
-    timeCapSec: integer('time_cap_sec'),
     startedAt: integer('started_at').notNull(),
+    finishedAt: integer('finished_at'),
+    notes: text('notes'),
+    locationId: text('location_id'),
+  },
+  (t) => [index('sessions_started_idx').on(t.startedAt)],
+);
+
+/** A block as performed in a session: a snapshot of its config plus the WOD result. */
+export const sessionBlocks = sqliteTable(
+  'session_blocks',
+  {
+    ...syncColumns,
+    sessionId: text('session_id').notNull(),
+    /** The routine block it came from (null in a "Treino livre"); WOD PRs compare against it. */
+    workoutBlockId: text('workout_block_id'),
+    position: integer('position').notNull(),
+    ...blockConfig,
+    /** WOD blocks: when the result was saved. */
     finishedAt: integer('finished_at'),
     resultTimeSec: integer('result_time_sec'),
     resultRounds: integer('result_rounds'),
     resultReps: integer('result_reps'),
     rx: integer('rx', { mode: 'boolean' }).notNull().default(true),
-    notes: text('notes'),
-    locationId: text('location_id'),
-    /** WODs: the result beat every earlier session of the same routine (set on finish). */
+    /** WOD blocks: the result beat every earlier run of the same routine block. */
     isPr: integer('is_pr', { mode: 'boolean' }).notNull().default(false),
   },
-  (t) => [index('sessions_started_idx').on(t.startedAt)],
+  (t) => [index('session_blocks_session_idx').on(t.sessionId)],
 );
 
 export const sessionSets = sqliteTable(
@@ -161,8 +198,10 @@ export const sessionSets = sqliteTable(
   {
     ...syncColumns,
     sessionId: text('session_id').notNull(),
+    /** Block the set belongs to (always set; nullable only for the migration). */
+    sessionBlockId: text('session_block_id'),
     exerciseId: text('exercise_id').notNull(),
-    /** Exercise order within the session. */
+    /** Exercise order within the session (unique across its blocks; groups the sets of one exercise). */
     position: integer('position').notNull(),
     setIndex: integer('set_index').notNull(),
     type: text('type', { enum: SET_TYPES }).notNull().default('normal'),
@@ -184,11 +223,18 @@ export const sessionSets = sqliteTable(
 );
 
 export const workoutsRelations = relations(workouts, ({ many }) => ({
+  blocks: many(workoutBlocks),
+  items: many(workoutItems),
+}));
+
+export const workoutBlocksRelations = relations(workoutBlocks, ({ one, many }) => ({
+  workout: one(workouts, { fields: [workoutBlocks.workoutId], references: [workouts.id] }),
   items: many(workoutItems),
 }));
 
 export const workoutItemsRelations = relations(workoutItems, ({ one, many }) => ({
   workout: one(workouts, { fields: [workoutItems.workoutId], references: [workouts.id] }),
+  block: one(workoutBlocks, { fields: [workoutItems.blockId], references: [workoutBlocks.id] }),
   exercise: one(exercises, { fields: [workoutItems.exerciseId], references: [exercises.id] }),
   targetSets: many(workoutItemSets),
 }));
@@ -198,16 +244,25 @@ export const workoutItemSetsRelations = relations(workoutItemSets, ({ one }) => 
 }));
 
 export const sessionsRelations = relations(sessions, ({ many }) => ({
+  blocks: many(sessionBlocks),
+  sets: many(sessionSets),
+}));
+
+export const sessionBlocksRelations = relations(sessionBlocks, ({ one, many }) => ({
+  session: one(sessions, { fields: [sessionBlocks.sessionId], references: [sessions.id] }),
   sets: many(sessionSets),
 }));
 
 export const sessionSetsRelations = relations(sessionSets, ({ one }) => ({
   session: one(sessions, { fields: [sessionSets.sessionId], references: [sessions.id] }),
+  block: one(sessionBlocks, { fields: [sessionSets.sessionBlockId], references: [sessionBlocks.id] }),
   exercise: one(exercises, { fields: [sessionSets.exerciseId], references: [exercises.id] }),
 }));
 
 export type Exercise = typeof exercises.$inferSelect;
 export type Workout = typeof workouts.$inferSelect;
+export type WorkoutBlock = typeof workoutBlocks.$inferSelect;
+export type SessionBlock = typeof sessionBlocks.$inferSelect;
 export type WorkoutItem = typeof workoutItems.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type SessionSet = typeof sessionSets.$inferSelect;
@@ -223,8 +278,10 @@ export const SYNC_TABLES = {
   locationMachines,
   machineExercises,
   workouts,
+  workoutBlocks,
   workoutItems,
   workoutItemSets,
   sessions,
+  sessionBlocks,
   sessionSets,
 } as const;

@@ -27,3 +27,4 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0007 | [Local low-res machine photos](0007-machine-photos.md)                      | Accepted | 2026-10-17 |
 | 0008 | ["Next in rotation" = routine done longest ago](0008-rotation-least-recent.md) | Accepted | 2026-10-17 |
 | 0009 | [Store PR flags on sets and sessions](0009-stored-pr-flags.md)                | Accepted | 2026-10-17 |
+| 0010 | [Workouts are lists of blocks](0010-workouts-as-blocks.md)                 | Accepted | 2026-10-17 |

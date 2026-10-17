@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Card, Divider, IconButton, List, Text, useTheme } from 'react-native-paper';
 
 import { beginRoutine } from '@/features/session/begin';
-import { WORKOUT_TYPE_ICON, WORKOUT_TYPE_LABEL } from '@/theme';
+import { describeShape, workoutIcon } from '@/features/workouts/blocks';
 
 import type { RoutineRow } from './queries';
 import { relativeDays } from './stats';
@@ -26,16 +26,12 @@ export function RoutineList({ routines, now, limit = 4 }: { routines: RoutineRow
             {i > 0 && <Divider />}
             <List.Item
               title={r.name}
-              description={[
-                WORKOUT_TYPE_LABEL[r.type],
-                r.type === 'strength' ? `${r.exerciseCount} ${r.exerciseCount === 1 ? 'exercício' : 'exercícios'}` : null,
-                relativeDays(r.lastDoneAt, now),
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-              left={(p) => (
-                <List.Icon {...p} icon={WORKOUT_TYPE_ICON[r.type]} color={r.type === 'strength' ? theme.colors.primary : theme.colors.secondary} />
-              )}
+              description={`${describeShape(r.blocks)} · ${relativeDays(r.lastDoneAt, now)}`}
+              left={(p) => {
+                const kinds = r.blocks.map((b) => b.kind);
+                const plain = !kinds.length || kinds.includes('exercises');
+                return <List.Icon {...p} icon={workoutIcon(kinds)} color={plain ? theme.colors.primary : theme.colors.secondary} />;
+              }}
               right={() => (
                 <IconButton
                   icon="play"

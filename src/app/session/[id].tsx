@@ -10,8 +10,7 @@ import { TimeField } from '@/components/time-field';
 import { db } from '@/db/client';
 import { sessions } from '@/db/schema';
 import { deleteSession, finishSession, saveSessionAsRoutine, type SessionResult } from '@/features/session/repo';
-import { StrengthSession } from '@/features/session/strength-session';
-import { WodSession } from '@/features/session/wod-session';
+import { SessionView } from '@/features/session/session-view';
 import { useTimerStore } from '@/features/timer/store';
 import { formatDuration } from '@/lib/format';
 
@@ -50,7 +49,7 @@ export default function SessionScreen() {
 
   if (!session) return null;
 
-  const isFree = session.type === 'strength' && !session.workoutId;
+  const isFree = !session.workoutId;
 
   const save = async (result: SessionResult) => {
     await finishSession(session.id, result);
@@ -81,17 +80,13 @@ export default function SessionScreen() {
           headerRight: () => <IconButton icon="delete-outline" onPress={discard} />,
         }}
       />
-      {session.type === 'strength' ? (
-        <StrengthSession
-          session={session}
-          onFinish={() => {
-            setTimes(normalizeTimes(session.startedAt, Date.now()));
-            setFinishOpen(true);
-          }}
-        />
-      ) : (
-        <WodSession session={session} onSave={save} />
-      )}
+      <SessionView
+        session={session}
+        onFinish={() => {
+          setTimes(normalizeTimes(session.startedAt, Date.now()));
+          setFinishOpen(true);
+        }}
+      />
       <Portal>
         <Dialog visible={finishOpen} onDismiss={() => setFinishOpen(false)}>
           <Dialog.Title>Finalizar treino</Dialog.Title>

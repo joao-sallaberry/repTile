@@ -1,17 +1,12 @@
-import { desc, isNull } from 'drizzle-orm';
-import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router } from 'expo-router';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { Appbar, FAB, List, Text } from 'react-native-paper';
 
-import { db } from '@/db/client';
-import { workouts } from '@/db/schema';
-import { WORKOUT_TYPE_ICON, WORKOUT_TYPE_LABEL } from '@/theme';
+import { useRoutines } from '@/features/home/queries';
+import { describeShape, workoutIcon } from '@/features/workouts/blocks';
 
 export default function WorkoutsScreen() {
-  const { data } = useLiveQuery(
-    db.select().from(workouts).where(isNull(workouts.deletedAt)).orderBy(desc(workouts.updatedAt)),
-  );
+  const data = useRoutines();
 
   return (
     <View style={styles.flex}>
@@ -25,8 +20,8 @@ export default function WorkoutsScreen() {
         renderItem={({ item }) => (
           <List.Item
             title={item.name}
-            description={WORKOUT_TYPE_LABEL[item.type]}
-            left={(p) => <List.Icon {...p} icon={WORKOUT_TYPE_ICON[item.type]} />}
+            description={describeShape(item.blocks)}
+            left={(p) => <List.Icon {...p} icon={workoutIcon(item.blocks.map((b) => b.kind))} />}
             right={(p) => <List.Icon {...p} icon="chevron-right" />}
             onPress={() => router.push({ pathname: '/workout/[id]', params: { id: item.id } })}
           />

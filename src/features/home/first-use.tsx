@@ -60,7 +60,7 @@ export function FirstUse() {
               <Text variant="titleSmall">{t.name}</Text>
               <Text
                 variant="bodySmall"
-                style={t.routines[0].type === 'strength' ? styles.muted : { color: theme.colors.secondary }}>
+                style={t.routines[0].blocks.some((b) => b.kind === 'exercises') ? styles.muted : { color: theme.colors.secondary }}>
                 {installing === t.key ? 'Criando…' : t.subtitle}
               </Text>
             </Card.Content>

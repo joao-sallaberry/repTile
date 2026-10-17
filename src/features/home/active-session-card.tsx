@@ -6,12 +6,12 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Card, Icon, ProgressBar, Text, useTheme } from 'react-native-paper';
 
 import { db } from '@/db/client';
-import { sessionSets, type Session } from '@/db/schema';
+import { sessionBlocks, sessionSets, type Session } from '@/db/schema';
 import { useTimerStore } from '@/features/timer/store';
 import { useTimerSnapshot } from '@/features/timer/use-timer-snapshot';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDuration } from '@/lib/format';
-import { WORKOUT_TYPE_LABEL } from '@/theme';
+import { describeBlockFormat } from '@/features/workouts/blocks';
 
 function useElapsedSec(since: number) {
   const [now, setNow] = useState(Date.now);
@@ -40,19 +40,38 @@ export function ActiveSessionCard({ session }: { session: Session }) {
     [session.id],
   );
 
-  const isStrength = session.type === 'strength';
-  const done = sets.filter((s) => s.completedAt).length;
-  const current = sets.find((s) => !s.completedAt);
+  const { data: blocks } = useLiveQuery(
+    db
+      .select()
+      .from(sessionBlocks)
+      .where(and(eq(sessionBlocks.sessionId, session.id), isNull(sessionBlocks.deletedAt)))
+      .orderBy(asc(sessionBlocks.position)),
+    [session.id],
+  );
+
+  const plainBlocks = new Set(blocks.filter((b) => b.kind === 'exercises').map((b) => b.id));
+  const plainSets = sets.filter((s) => s.sessionBlockId && plainBlocks.has(s.sessionBlockId));
+  const wods = blocks.filter((b) => b.kind !== 'exercises');
+  const wodsDone = wods.filter((b) => b.finishedAt).length;
+  const done = plainSets.filter((s) => s.completedAt).length;
+  const runningWod = timer?.blockId ? blocks.find((b) => b.id === timer.blockId) : undefined;
+  const current = plainSets.find((s) => !s.completedAt);
   const currentName = current ? exerciseMap.get(current.exerciseId)?.name : undefined;
   const timerRunning = timer && snap && snap.phase !== 'done';
+  const total = plainSets.length + wods.length;
+  const progress = total ? (done + wodsDone) / total : 0;
 
-  const progressText = isStrength
-    ? sets.length
-      ? `${done} de ${sets.length} séries${currentName ? ` · agora: ${currentName}` : ''}`
-      : 'Nenhum exercício ainda'
-    : session.type === 'amrap'
-      ? `${WORKOUT_TYPE_LABEL.amrap} · ${session.resultRounds ?? 0} rounds + ${session.resultReps ?? 0} reps`
-      : WORKOUT_TYPE_LABEL[session.type];
+  const progressText = runningWod
+    ? `Agora: ${describeBlockFormat(runningWod)}`
+    : total
+      ? [
+          plainSets.length ? `${done} de ${plainSets.length} séries` : null,
+          wods.length ? `${wodsDone} de ${wods.length} ${wods.length === 1 ? 'bloco' : 'blocos'}` : null,
+          currentName ? `agora: ${currentName}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : 'Nenhum exercício ainda';
 
   const fg = theme.colors.onPrimary;
   return (
@@ -73,8 +92,8 @@ export function ActiveSessionCard({ session }: { session: Session }) {
           {session.name}
         </Text>
         <View style={styles.progress}>
-          {isStrength && sets.length > 0 && (
-            <ProgressBar progress={done / sets.length} color={fg} style={[styles.bar, { backgroundColor: 'rgba(26,11,0,0.18)' }]} />
+          {total > 0 && (
+            <ProgressBar progress={progress} color={fg} style={[styles.bar, { backgroundColor: 'rgba(26,11,0,0.18)' }]} />
           )}
           <Text variant="labelLarge" style={{ color: fg }}>
             {progressText}
@@ -86,7 +105,11 @@ export function ActiveSessionCard({ session }: { session: Session }) {
             icon="play"
             buttonColor={fg}
             textColor={theme.colors.onPrimaryContainer}
-            onPress={() => router.push({ pathname: '/session/[id]', params: { id: session.id } })}
+            onPress={() =>
+              runningWod
+                ? router.push({ pathname: '/wod/[id]', params: { id: runningWod.id } })
+                : router.push({ pathname: '/session/[id]', params: { id: session.id } })
+            }
             style={styles.flex}
             contentStyle={styles.bigBtn}>
             Voltar ao treino

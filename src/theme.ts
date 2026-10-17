@@ -42,17 +42,3 @@ export const navTheme: NavTheme = {
     border: theme.colors.outlineVariant,
   },
 };
-
-export const WORKOUT_TYPE_LABEL = {
-  strength: 'Musculação',
-  amrap: 'AMRAP',
-  emom: 'EMOM',
-  for_time: 'For Time',
-} as const;
-
-export const WORKOUT_TYPE_ICON = {
-  strength: 'dumbbell',
-  amrap: 'timer-sand',
-  emom: 'timer-outline',
-  for_time: 'flag-checkered',
-} as const;
