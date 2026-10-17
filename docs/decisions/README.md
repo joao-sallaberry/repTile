@@ -25,3 +25,5 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0005 | [Set types and per-set targets](0005-set-types-per-set-targets.md)          | Accepted | 2026-10-16 |
 | 0006 | [Optional machines, N:N with locations and exercises](0006-machines-locations.md) | Accepted | 2026-10-16 |
 | 0007 | [Local low-res machine photos](0007-machine-photos.md)                      | Accepted | 2026-10-17 |
+| 0008 | ["Next in rotation" = routine done longest ago](0008-rotation-least-recent.md) | Accepted | 2026-10-17 |
+| 0009 | [Store PR flags on sets and sessions](0009-stored-pr-flags.md)                | Accepted | 2026-10-17 |

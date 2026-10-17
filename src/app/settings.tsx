@@ -1,10 +1,14 @@
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet } from 'react-native';
-import { Card, List, Text } from 'react-native-paper';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Card, Chip, List, Text } from 'react-native-paper';
 
+import { useWeeklyGoal } from '@/features/home/goal';
 import { TimerPermissionsList } from '@/features/timer/permissions-list';
 
+const GOALS = [null, 1, 2, 3, 4, 5, 6, 7];
+
 export default function SettingsScreen() {
+  const { goal, set: setGoal } = useWeeklyGoal();
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <Text variant="titleMedium">Avisos do timer</Text>
@@ -18,6 +22,16 @@ export default function SettingsScreen() {
       <Text variant="titleMedium" style={styles.section}>
         Treino
       </Text>
+      <Text variant="bodySmall" style={styles.muted}>
+        Meta semanal: quantos treinos por semana (de domingo a sábado) aparecem na tela inicial.
+      </Text>
+      <View style={styles.chips}>
+        {GOALS.map((g) => (
+          <Chip key={g ?? 'none'} selected={goal === g} showSelectedCheck={false} onPress={() => setGoal(g)}>
+            {g ?? 'Sem meta'}
+          </Chip>
+        ))}
+      </View>
       <Card mode="contained">
         <List.Item
           title="Locais e máquinas"
@@ -34,4 +48,5 @@ const styles = StyleSheet.create({
   content: { padding: 16, gap: 8, paddingBottom: 48 },
   muted: { opacity: 0.7, marginBottom: 4 },
   section: { marginTop: 16 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
 });
