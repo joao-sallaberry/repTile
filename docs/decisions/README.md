@@ -29,3 +29,4 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0009 | [Store PR flags on sets and sessions](0009-stored-pr-flags.md)                | Accepted | 2026-10-17 |
 | 0010 | [Workouts are lists of blocks](0010-workouts-as-blocks.md)                 | Accepted | 2026-10-17 |
 | 0011 | [Exercises have one equipment](0011-exercise-equipment.md)                 | Accepted | 2026-10-17 |
+| 0012 | [Tabata blocks and per-round tracking](0012-tabata-and-round-tracking.md)    | Accepted | 2026-10-17 |

@@ -27,7 +27,7 @@ export type Equipment = (typeof EQUIPMENT)[number];
  * A workout is a list of blocks (ADR 0010): plain exercises (sets, warm-ups, rest) or a
  * timed WOD block (AMRAP, EMOM, For Time) with its own movements.
  */
-export const BLOCK_KINDS = ['exercises', 'amrap', 'emom', 'for_time'] as const;
+export const BLOCK_KINDS = ['exercises', 'amrap', 'emom', 'for_time', 'tabata'] as const;
 export type BlockKind = (typeof BLOCK_KINDS)[number];
 export type WodKind = Exclude<BlockKind, 'exercises'>;
 
@@ -100,8 +100,11 @@ const blockConfig = {
   durationSec: integer('duration_sec'),
   /** EMOM: duration of each interval. */
   intervalSec: integer('interval_sec'),
-  /** EMOM: number of intervals; For Time: number of rounds. */
+  /** EMOM: number of intervals; For Time and Tabata: number of rounds. */
   rounds: integer('rounds'),
+  /** Tabata: work and rest of each round (no rest after the last one). */
+  workSec: integer('work_sec'),
+  restSec: integer('rest_sec'),
   /** For Time: time cap (optional). */
   timeCapSec: integer('time_cap_sec'),
   /** EMOM: each interval does the next movement in turn (min 1: A, min 2: B, …) instead of all of them. */
@@ -191,6 +194,10 @@ export const sessionBlocks = sqliteTable(
     resultTimeSec: integer('result_time_sec'),
     resultRounds: integer('result_rounds'),
     resultReps: integer('result_reps'),
+    /** AMRAP / For Time: elapsed seconds when each round was marked done (round splits). */
+    roundSplits: text('round_splits', { mode: 'json' }).$type<number[]>(),
+    /** Tabata: reps done in each round. */
+    roundReps: text('round_reps', { mode: 'json' }).$type<number[]>(),
     rx: integer('rx', { mode: 'boolean' }).notNull().default(true),
     /** WOD blocks: the result beat every earlier run of the same routine block. */
     isPr: integer('is_pr', { mode: 'boolean' }).notNull().default(false),

@@ -5,7 +5,7 @@ import { DurationField } from '@/components/duration-field';
 import { NumberField } from '@/components/number-field';
 import type { BlockConfig } from '@/features/workouts/blocks';
 
-/** Settings of a WOD block: duration (AMRAP), interval/rounds/alternating (EMOM), rounds/cap (For Time). */
+/** Settings of a WOD block: duration (AMRAP), interval/rounds/alternating (EMOM), rounds/cap (For Time), work/rest/rounds (Tabata). */
 export function BlockConfigFields({
   config,
   onChange,
@@ -66,11 +66,30 @@ export function BlockConfigFields({
           />
         </View>
       );
+    case 'tabata':
+      return (
+        <View style={styles.row}>
+          <DurationField
+            style={styles.flex}
+            label="Trabalho (m:ss)"
+            value={config.workSec}
+            onChange={(workSec) => onChange({ workSec })}
+          />
+          <DurationField
+            style={styles.flex}
+            label="Descanso (m:ss)"
+            value={config.restSec}
+            onChange={(restSec) => onChange({ restSec })}
+          />
+          <NumberField style={styles.num} label="Rounds" value={config.rounds} onChange={(rounds) => onChange({ rounds })} />
+        </View>
+      );
   }
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  num: { width: 84 },
   box: { gap: 8 },
   row: { flexDirection: 'row', gap: 8 },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

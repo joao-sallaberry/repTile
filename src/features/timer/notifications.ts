@@ -117,6 +117,8 @@ function describeSpec(timer: ActiveTimer): string {
       return `EMOM ${spec.rounds} × ${formatDuration(spec.intervalSec)}`;
     case 'for_time':
       return spec.timeCapSec ? `For Time · cap ${formatDuration(spec.timeCapSec)}` : 'For Time';
+    case 'tabata':
+      return `Tabata ${spec.rounds} × ${spec.workSec}s/${spec.restSec}s`;
   }
 }
 
@@ -193,10 +195,10 @@ async function scheduleBackgroundAlerts(timer: ActiveTimer) {
     );
   }
 
-  // "Go!" and each new EMOM interval (the short 3-2-1 beeps only play in the app).
+  // "Go!", each new EMOM interval and each Tabata work/rest (the short 3-2-1 beeps only play in the app).
   const base = timer.clock.startedAt + timer.clock.pausedTotalMs;
   const cues = timerCues(timer.spec, timer.clock)
-    .filter((c) => c.kind === 'go' || c.kind === 'interval')
+    .filter((c) => c.kind === 'go' || c.kind === 'interval' || c.kind === 'rest')
     .map((c, i) => ({ ...c, i, at: base + c.atSec * 1000 }))
     .filter((c) => c.at > now + 500)
     .slice(0, MAX_SCHEDULED_CUES);
@@ -206,7 +208,12 @@ async function scheduleBackgroundAlerts(timer: ActiveTimer) {
     await notifee.createTriggerNotification(
       {
         id: `${CUE_PREFIX}${cue.i}`,
-        title: cue.kind === 'go' ? 'Vai!' : `Round ${snap.round}/${snap.roundCount}`,
+        title:
+          cue.kind === 'go'
+            ? 'Vai!'
+            : cue.kind === 'rest'
+              ? `Descanso · round ${snap.round}/${snap.roundCount}`
+              : `Round ${snap.round}/${snap.roundCount}`,
         body: timer.label,
         android: {
           channelId: CHANNEL_CUE,

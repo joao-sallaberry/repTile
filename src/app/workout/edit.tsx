@@ -325,7 +325,13 @@ function BlockEditor({
       <Card.Content style={styles.wodContent}>
         <BlockConfigFields config={block} onChange={onChange} />
         <Text variant="labelLarge" style={styles.muted}>
-          {block.kind === 'emom' && !block.alternate ? 'MOVIMENTOS (A CADA INTERVALO)' : block.alternate ? 'MOVIMENTOS (EM SEQUÊNCIA)' : 'MOVIMENTOS (POR ROUND)'}
+          {block.kind === 'emom' && !block.alternate
+            ? 'MOVIMENTOS (A CADA INTERVALO)'
+            : block.alternate
+              ? 'MOVIMENTOS (EM SEQUÊNCIA)'
+              : block.kind === 'tabata'
+                ? 'MOVIMENTOS (UM POR ROUND, EM SEQUÊNCIA)'
+                : 'MOVIMENTOS (POR ROUND)'}
         </Text>
         {items}
         <Button icon="plus" mode="text" style={styles.addInBlock} onPress={onAddItem}>
@@ -499,6 +505,7 @@ function validate(d: WorkoutDraft): string[] {
   for (const b of d.blocks) {
     if (b.kind === 'amrap' && !b.durationSec) errors.push('Informe a duração do AMRAP.');
     if (b.kind === 'emom' && (!b.intervalSec || !b.rounds)) errors.push('Informe intervalo e número de intervalos do EMOM.');
+    if (b.kind === 'tabata' && (!b.workSec || !b.rounds)) errors.push('Informe o tempo de trabalho e os rounds do Tabata.');
     if (b.kind !== 'exercises' && !b.items.length) errors.push(`Adicione movimentos ao ${BLOCK_KIND_LABEL[b.kind]}.`);
   }
   return [...new Set(errors)];

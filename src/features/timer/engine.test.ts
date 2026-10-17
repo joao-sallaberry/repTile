@@ -5,6 +5,7 @@ import {
   newClock,
   pause,
   resume,
+  skipSegment,
   timerCues,
   type TimerSpec,
 } from './engine';
@@ -91,5 +92,48 @@ describe('timerCues', () => {
   test('For Time without a cap has no end', () => {
     const cues = timerCues({ kind: 'for_time', timeCapSec: null }, { leadInSec: 3, extraSec: 0 });
     expect(cues.map((c) => c.kind)).toEqual(['tick', 'tick', 'tick', 'go']);
+  });
+});
+
+describe('Tabata', () => {
+  const spec: TimerSpec = { kind: 'tabata', workSec: 20, restSec: 10, rounds: 8 };
+
+  test('alternates work and rest, without rest after the last round', () => {
+    const clock = newClock(T0, 0);
+    expect(computeTimer(spec, clock, at(0))).toMatchObject({ round: 1, interval: 'work', displaySec: 20, totalSec: 230 });
+    expect(computeTimer(spec, clock, at(20))).toMatchObject({ round: 1, interval: 'rest', displaySec: 10 });
+    expect(computeTimer(spec, clock, at(30))).toMatchObject({ round: 2, interval: 'work', displaySec: 20 });
+    expect(computeTimer(spec, clock, at(215))).toMatchObject({ round: 8, interval: 'work', displaySec: 15 });
+    expect(computeTimer(spec, clock, at(230))).toMatchObject({ round: 8, phase: 'done' });
+  });
+
+  test('cues: rest and work changes, then the end', () => {
+    const cues = timerCues(spec, { leadInSec: 0, extraSec: 0 });
+    expect(cues.filter((c) => c.kind === 'rest').map((c) => c.atSec)).toEqual([20, 50, 80, 110, 140, 170, 200]);
+    expect(cues.filter((c) => c.kind === 'interval').map((c) => c.atSec)).toEqual([30, 60, 90, 120, 150, 180, 210]);
+    expect(cues.at(-1)).toEqual({ atSec: 230, kind: 'end' });
+    expect(cues.filter((c) => c.kind === 'tick' && c.atSec > 20 && c.atSec < 30).map((c) => c.atSec)).toEqual([27, 28, 29]);
+  });
+});
+
+describe('skipSegment', () => {
+  test('EMOM: jumps to the next interval', () => {
+    const spec: TimerSpec = { kind: 'emom', intervalSec: 60, rounds: 10 };
+    const skipped = skipSegment(spec, newClock(T0, 0), at(22));
+    expect(computeTimer(spec, skipped, at(22))).toMatchObject({ round: 2, roundRemainingSec: 60 });
+  });
+
+  test('ends the lead-in; leaves AMRAP alone', () => {
+    const spec: TimerSpec = { kind: 'amrap', durationSec: 600 };
+    const skipped = skipSegment(spec, newClock(T0, 10), at(3));
+    expect(computeTimer(spec, skipped, at(3))).toMatchObject({ phase: 'running', displaySec: 600 });
+    const running = newClock(T0, 0);
+    expect(skipSegment(spec, running, at(30))).toBe(running);
+  });
+
+  test('Tabata: from work to rest', () => {
+    const spec: TimerSpec = { kind: 'tabata', workSec: 20, restSec: 10, rounds: 8 };
+    const skipped = skipSegment(spec, newClock(T0, 0), at(5));
+    expect(computeTimer(spec, skipped, at(5))).toMatchObject({ round: 1, interval: 'rest', displaySec: 10 });
   });
 });

@@ -72,10 +72,10 @@ export default function WorkoutDetailScreen() {
 
   if (!workout) return null;
 
-  // Best result of each WOD block (AMRAP / For Time), over all its runs.
+  // Best result of each scored WOD block (AMRAP / For Time / Tabata), over all its runs.
   const bestByBlock = new Map<string, SessionBlock>();
   for (const { block: run } of wodRuns) {
-    if (!run.workoutBlockId || (run.kind !== 'amrap' && run.kind !== 'for_time')) continue;
+    if (!run.workoutBlockId || run.kind === 'exercises' || run.kind === 'emom') continue;
     const cur = bestByBlock.get(run.workoutBlockId);
     if (!cur || compareWodResults(run.kind, run, cur) > 0) bestByBlock.set(run.workoutBlockId, run);
   }

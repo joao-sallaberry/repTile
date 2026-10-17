@@ -38,9 +38,10 @@ type ResultLike = {
   resultRounds: number | null;
   resultReps: number | null;
   rx: boolean;
+  roundReps?: number[] | null;
 };
 
-/** A WOD block's result: "6:42 · Rx", "12 rounds + 5 reps · Scaled", "Cap · 4 rounds + 0 reps · Rx". */
+/** A WOD block's result: "6:42 · Rx", "12 rounds + 5 reps · Scaled", "Cap · 4 rounds + 0 reps · Rx", "112 reps · pior round 11 · Rx". */
 export function describeResult(s: ResultLike): string | null {
   let text: string | null = null;
   if (s.kind === 'for_time' && s.resultTimeSec != null) text = formatDuration(s.resultTimeSec);
@@ -50,8 +51,22 @@ export function describeResult(s: ResultLike): string | null {
       if (s.kind === 'for_time') text = `Cap · ${text}`;
     }
   } else if (s.kind === 'emom' && s.resultRounds != null) text = `${s.resultRounds} rounds`;
+  else if (s.kind === 'tabata' && s.resultReps != null) {
+    const worst = s.roundReps?.length ? Math.min(...s.roundReps) : null;
+    text = worst != null ? `${s.resultReps} reps · pior round ${worst}` : `${s.resultReps} reps`;
+  }
   if (text) text += s.rx ? ' · Rx' : ' · Scaled';
   return text;
+}
+
+/** Per-round detail of a WOD result: "Parciais 3:51 · 2:51 · 3:02" or "Por round 14 · 13 · 11"; null if none. */
+export function describeRounds(b: { kind: BlockKind; roundSplits: number[] | null; roundReps: number[] | null }): string | null {
+  if ((b.kind === 'amrap' || b.kind === 'for_time') && b.roundSplits?.length) {
+    const d = b.roundSplits.map((at, i) => at - (i ? b.roundSplits![i - 1] : 0));
+    return `Parciais ${d.map(formatDuration).join(' · ')}`;
+  }
+  if (b.kind === 'tabata' && b.roundReps?.length) return `Por round ${b.roundReps.join(' · ')}`;
+  return null;
 }
 
 type TargetLike = { type: SetType; reps: number | null; weight: number | null };

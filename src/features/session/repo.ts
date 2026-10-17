@@ -81,8 +81,8 @@ export async function previousSessionSets(
 }
 
 const configOf = (b: BlockConfig): BlockConfig => {
-  const { kind, durationSec, intervalSec, rounds, timeCapSec, alternate } = cleanBlockConfig(b);
-  return { kind, durationSec, intervalSec, rounds, timeCapSec, alternate };
+  const { kind, durationSec, intervalSec, rounds, timeCapSec, workSec, restSec, alternate } = cleanBlockConfig(b);
+  return { kind, durationSec, intervalSec, rounds, timeCapSec, workSec, restSec, alternate };
 };
 
 export async function startSession(workoutId: string, fallbackLocationId: string | null = null): Promise<string> {
@@ -404,7 +404,10 @@ export async function removeSet(id: string) {
 }
 
 /** AMRAP round counter, saved on every tap. */
-export async function updateWodProgress(sessionBlockId: string, values: { resultRounds?: number; resultReps?: number }) {
+export async function updateWodProgress(
+  sessionBlockId: string,
+  values: { resultRounds?: number; resultReps?: number; roundSplits?: number[]; roundReps?: number[] },
+) {
   await db.update(sessionBlocks).set({ ...values, ...touched() }).where(eq(sessionBlocks.id, sessionBlockId));
 }
 
@@ -412,8 +415,36 @@ export type BlockResult = {
   resultTimeSec?: number | null;
   resultRounds?: number | null;
   resultReps?: number | null;
+  /** Tabata: reps of each round, as reviewed on the result screen. */
+  roundReps?: number[] | null;
   rx?: boolean;
 };
+
+/** Clears a WOD block's result and round progress (recorded by mistake) so it can be done again. */
+export async function resetBlock(sessionBlockId: string) {
+  await db.transaction(async (tx) => {
+    const b = await tx.query.sessionBlocks.findFirst({ where: eq(sessionBlocks.id, sessionBlockId) });
+    if (!b) return;
+    await tx
+      .update(sessionBlocks)
+      .set({
+        finishedAt: null,
+        resultTimeSec: null,
+        resultRounds: b.kind === 'amrap' ? 0 : null,
+        resultReps: b.kind === 'amrap' ? 0 : null,
+        roundSplits: null,
+        roundReps: null,
+        rx: true,
+        isPr: false,
+        ...touched(),
+      })
+      .where(eq(sessionBlocks.id, sessionBlockId));
+    await tx
+      .update(sessionSets)
+      .set({ completedAt: null, ...touched() })
+      .where(and(eq(sessionSets.sessionBlockId, sessionBlockId), isNull(sessionSets.deletedAt)));
+  });
+}
 
 /** Saves a WOD block's result: its movements count as done, and it may be a PR for the routine block. */
 export async function finishBlock(sessionBlockId: string, result: BlockResult) {

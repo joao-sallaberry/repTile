@@ -43,6 +43,13 @@
       "when": 1792268089271,
       "tag": "0005_exercise_equipment",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792272008309,
+      "tag": "0006_tabata_splits",
+      "breakpoints": true
     }
   ]
 }

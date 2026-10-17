@@ -1,3 +1,5 @@
+import type { WodKind } from '@/db/schema';
+
 /** Estimated 1RM using the Epley formula. */
 export function estimateOneRepMax(weight: number, reps: number): number {
   if (reps <= 0 || weight <= 0) return 0;
@@ -71,8 +73,8 @@ export function isNewPR(previous: PerformedSet[], set: PerformedSet): boolean {
 
 export type WodResult = { resultTimeSec: number | null; resultRounds: number | null; resultReps: number | null };
 
-/** Compares WOD results: For Time = lowest time; AMRAP = most rounds/reps. */
-export function compareWodResults(type: 'amrap' | 'for_time' | 'emom', a: WodResult, b: WodResult): number {
+/** Compares WOD results: For Time = lowest time; AMRAP = most rounds/reps; Tabata = most total reps. */
+export function compareWodResults(type: WodKind, a: WodResult, b: WodResult): number {
   if (type === 'for_time') {
     // finishing within the cap (with a time) beats not finishing (rounds/reps)
     if (a.resultTimeSec != null && b.resultTimeSec != null) return b.resultTimeSec - a.resultTimeSec;
@@ -84,7 +86,7 @@ export function compareWodResults(type: 'amrap' | 'for_time' | 'emom', a: WodRes
 }
 
 /** Whether a WOD result beats every earlier result of the same routine (never on the first time). */
-export function isWodPR(type: 'amrap' | 'for_time' | 'emom', result: WodResult, previous: WodResult[]): boolean {
+export function isWodPR(type: WodKind, result: WodResult, previous: WodResult[]): boolean {
   if (type === 'emom' || !previous.length) return false;
   return previous.every((p) => compareWodResults(type, result, p) > 0);
 }

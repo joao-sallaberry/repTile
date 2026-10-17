@@ -10,6 +10,7 @@ import {
   newClock,
   pause as pauseClock,
   resume as resumeClock,
+  skipSegment,
   type TimerClock,
   type TimerSpec,
 } from './engine';
@@ -33,6 +34,8 @@ type TimerState = {
   resume: () => void;
   togglePause: () => void;
   addSeconds: (sec: number) => void;
+  /** Next EMOM interval / Tabata work or rest (or the end of the lead-in). */
+  skip: () => void;
   stop: () => void;
 };
 
@@ -58,6 +61,10 @@ export const useTimerStore = create<TimerState>()(
       addSeconds: (sec) => {
         const a = get().active;
         if (a) set({ active: { ...a, clock: addClockSeconds(a.clock, sec) } });
+      },
+      skip: () => {
+        const a = get().active;
+        if (a) set({ active: { ...a, clock: skipSegment(a.spec, a.clock, Date.now()) } });
       },
       stop: () => set({ active: null }),
     }),

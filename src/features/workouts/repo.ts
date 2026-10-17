@@ -114,6 +114,8 @@ export async function getWorkoutDraft(id: string): Promise<WorkoutDraft | null> 
       intervalSec: b.intervalSec,
       rounds: b.rounds,
       timeCapSec: b.timeCapSec,
+      workSec: b.workSec,
+      restSec: b.restSec,
       alternate: b.alternate,
       notes: b.notes,
       items: b.items.map((i) => ({

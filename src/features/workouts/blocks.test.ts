@@ -1,4 +1,13 @@
-import { defaultBlockConfig, describeBlockFormat, describeShape, emomMovementIndex, workoutIcon } from './blocks';
+import {
+  defaultBlockConfig,
+  describeBlockFormat,
+  describeShape,
+  emomMovementIndex,
+  splitDurations,
+  tabataMovementIndex,
+  workoutIcon,
+  worstRound,
+} from './blocks';
 
 const emom = { ...defaultBlockConfig('emom'), rounds: 12 };
 
@@ -9,6 +18,20 @@ test('describeBlockFormat', () => {
   expect(describeBlockFormat({ ...emom, alternate: true })).toBe('EMOM 12 min · alternado');
   expect(describeBlockFormat({ ...emom, intervalSec: 90, rounds: 8 })).toBe('EMOM 8 × 1:30');
   expect(describeBlockFormat(defaultBlockConfig('for_time'))).toBe('3 rounds for time · cap 15:00');
+  expect(describeBlockFormat(defaultBlockConfig('tabata'))).toBe('Tabata 8 × 20s/10s');
+  expect(describeBlockFormat({ ...defaultBlockConfig('tabata'), workSec: 90, rounds: 4 })).toBe('Tabata 4 × 1:30/10s');
+});
+
+test('tabataMovementIndex cycles every round', () => {
+  expect([1, 2, 3, 4].map((r) => tabataMovementIndex(r, 2))).toEqual([0, 1, 0, 1]);
+  expect(tabataMovementIndex(1, 0)).toBeNull();
+});
+
+test('splitDurations and worstRound', () => {
+  expect(splitDurations([231, 402, 590])).toEqual([231, 171, 188]);
+  expect(splitDurations([])).toEqual([]);
+  expect(worstRound([14, 11, 13])).toBe(11);
+  expect(worstRound([])).toBeNull();
 });
 
 test('describeShape', () => {

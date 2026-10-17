@@ -11,7 +11,7 @@ import { useLocation, useMachineMap } from '@/features/places/queries';
 import { deleteSession } from '@/features/session/repo';
 import { countsTowardStats, setLabels } from '@/features/session/sets';
 import { BLOCK_KIND_ICON, describeBlockFormat, isWod } from '@/features/workouts/blocks';
-import { describeItem, describeResult } from '@/features/workouts/describe';
+import { describeItem, describeResult, describeRounds } from '@/features/workouts/describe';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDate, formatDuration, formatWeight } from '@/lib/format';
 
@@ -98,6 +98,13 @@ export default function SessionDetailScreen() {
                   </Text>
                 )}
               </Card.Content>
+              {describeRounds(block) && (
+                <Card.Content>
+                  <Text variant="bodyMedium" style={styles.rounds}>
+                    {describeRounds(block)}
+                  </Text>
+                </Card.Content>
+              )}
               {blockSets.map((s, i) => (
                 <View key={s.id}>
                   <Divider />
@@ -153,5 +160,6 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   setItem: { paddingLeft: 16 },
   result: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 8 },
+  rounds: { opacity: 0.75, paddingBottom: 8 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: 'hidden' },
 });

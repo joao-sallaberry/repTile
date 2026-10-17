@@ -28,7 +28,8 @@ function getPlayers() {
 }
 
 export function playCue(kind: CueKind) {
-  const p = getPlayers()[kind === 'interval' ? 'go' : kind];
+  // Tabata rest uses the end beep, so work and rest sound different.
+  const p = getPlayers()[kind === 'interval' ? 'go' : kind === 'rest' ? 'end' : kind];
   p.seekTo(0);
   p.play();
   void Haptics.impactAsync(kind === 'tick' ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Heavy);

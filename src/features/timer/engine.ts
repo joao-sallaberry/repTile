@@ -10,7 +10,8 @@ export type TimerSpec =
   | { kind: 'rest'; durationSec: number }
   | { kind: 'amrap'; durationSec: number }
   | { kind: 'emom'; intervalSec: number; rounds: number }
-  | { kind: 'for_time'; timeCapSec: number | null };
+  | { kind: 'for_time'; timeCapSec: number | null }
+  | { kind: 'tabata'; workSec: number; restSec: number; rounds: number };
 
 export type TimerClock = {
   /** When (ms) the timer was started, including the lead-in countdown. */
@@ -38,14 +39,17 @@ export type TimerSnapshot = {
   totalSec: number | null;
   /** 0..1, or null when there is no total duration. */
   progress: number | null;
-  /** EMOM: current interval (1-based). */
+  /** EMOM: current interval; Tabata: current round (1-based). */
   round: number | null;
   roundCount: number | null;
-  /** EMOM: seconds left in the current interval. */
+  /** EMOM: seconds left in the current interval; Tabata: in the current work or rest. */
   roundRemainingSec: number | null;
+  /** Tabata: whether it's work or rest time. */
+  interval: 'work' | 'rest' | null;
 };
 
-export type CueKind = 'tick' | 'go' | 'interval' | 'end';
+/** `interval` = a new EMOM interval or Tabata work; `rest` = Tabata rest starts. */
+export type CueKind = 'tick' | 'go' | 'interval' | 'rest' | 'end';
 /** An audio cue `atSec` seconds after `startedAt` (lead-in included). */
 export type Cue = { atSec: number; kind: CueKind };
 
@@ -58,7 +62,19 @@ export function totalWorkSec(spec: TimerSpec, extraSec = 0): number | null {
       return spec.intervalSec * spec.rounds + extraSec;
     case 'for_time':
       return spec.timeCapSec == null ? null : spec.timeCapSec + extraSec;
+    case 'tabata':
+      // No rest after the last round.
+      return spec.rounds * spec.workSec + Math.max(0, spec.rounds - 1) * spec.restSec + extraSec;
   }
+}
+
+/** Tabata: the 0-based round and whether `sec` (work seconds elapsed) falls in work or rest. */
+function tabataPosition(spec: Extract<TimerSpec, { kind: 'tabata' }>, sec: number) {
+  const cycle = spec.workSec + spec.restSec;
+  const idx = Math.min(Math.floor(sec / cycle), Math.max(1, spec.rounds) - 1);
+  const within = sec - idx * cycle;
+  const work = within < spec.workSec || idx === spec.rounds - 1;
+  return { idx, work, segmentEnd: idx * cycle + (work ? spec.workSec : cycle) };
 }
 
 /** Milliseconds actually run since `startedAt`, excluding pauses. */
@@ -77,6 +93,7 @@ export function computeTimer(spec: TimerSpec, clock: TimerClock, now: number): T
     round: null,
     roundCount: null,
     roundRemainingSec: null,
+    interval: null,
   };
 
   if (sinceStart < clock.leadInSec) {
@@ -109,6 +126,23 @@ export function computeTimer(spec: TimerSpec, clock: TimerClock, now: number): T
       round: idx + 1,
       roundCount: intervalCount,
       roundRemainingSec: Math.ceil(Math.max(0, roundEnd - clamped)),
+    };
+  }
+
+  if (spec.kind === 'tabata') {
+    const { idx, work, segmentEnd } = tabataPosition(spec, clamped);
+    const left = Math.ceil(Math.max(0, segmentEnd - clamped));
+    return {
+      ...base,
+      phase,
+      elapsedSec: clamped,
+      displaySec: left,
+      direction: 'down',
+      progress,
+      round: idx + 1,
+      roundCount: Math.max(1, spec.rounds),
+      roundRemainingSec: left,
+      interval: work ? 'work' : 'rest',
     };
   }
 
@@ -153,11 +187,28 @@ export function timerCues(spec: TimerSpec, clock: Pick<TimerClock, 'leadInSec' |
     }
   }
 
+  let lastSegmentStart = lead + 1;
+  if (spec.kind === 'emom') lastSegmentStart = lead + (spec.rounds - 1) * spec.intervalSec + 1;
+  if (spec.kind === 'tabata') {
+    const cycle = spec.workSec + spec.restSec;
+    for (let i = 0; i < spec.rounds; i++) {
+      const workAt = lead + i * cycle;
+      if (i > 0) {
+        cues.push(...countdownTicks(workAt, workAt - spec.restSec + 1));
+        cues.push({ atSec: workAt, kind: 'interval' });
+      }
+      if (i < spec.rounds - 1) {
+        const restAt = workAt + spec.workSec;
+        cues.push(...countdownTicks(restAt, workAt + 1));
+        cues.push({ atSec: restAt, kind: 'rest' });
+      }
+    }
+    lastSegmentStart = lead + (spec.rounds - 1) * cycle + 1;
+  }
+
   const total = totalWorkSec(spec, clock.extraSec);
   if (total != null) {
     const end = lead + total;
-    const lastSegmentStart =
-      spec.kind === 'emom' ? lead + (spec.rounds - 1) * spec.intervalSec + 1 : lead + 1;
     cues.push(...countdownTicks(end, lastSegmentStart));
     cues.push({ atSec: end, kind: 'end' });
   }
@@ -191,4 +242,26 @@ export function resume(clock: TimerClock, now: number): TimerClock {
 
 export function addSeconds(clock: TimerClock, sec: number): TimerClock {
   return { ...clock, extraSec: clock.extraSec + sec };
+}
+
+/**
+ * Jumps to the start of the next EMOM interval or Tabata work/rest (or ends the lead-in)
+ * by moving `startedAt` back; the other timers are unchanged.
+ */
+export function skipSegment(spec: TimerSpec, clock: TimerClock, now: number): TimerClock {
+  const sinceStart = runningMs(clock, now) / 1000;
+  let target: number | null = null;
+  if (sinceStart < clock.leadInSec) target = clock.leadInSec;
+  else if (spec.kind === 'emom' || spec.kind === 'tabata') {
+    const total = totalWorkSec(spec, clock.extraSec) ?? 0;
+    const elapsed = sinceStart - clock.leadInSec;
+    if (elapsed >= total) return clock;
+    const end =
+      spec.kind === 'emom'
+        ? (Math.floor(elapsed / spec.intervalSec) + 1) * spec.intervalSec
+        : tabataPosition(spec, elapsed).segmentEnd;
+    target = clock.leadInSec + Math.min(end, total);
+  }
+  if (target == null || target <= sinceStart) return clock;
+  return { ...clock, startedAt: clock.startedAt - (target - sinceStart) * 1000 };
 }
