@@ -150,6 +150,8 @@ export const sessions = sqliteTable(
     rx: integer('rx', { mode: 'boolean' }).notNull().default(true),
     notes: text('notes'),
     locationId: text('location_id'),
+    /** WODs: the result beat every earlier session of the same routine (set on finish). */
+    isPr: integer('is_pr', { mode: 'boolean' }).notNull().default(false),
   },
   (t) => [index('sessions_started_idx').on(t.startedAt)],
 );
@@ -172,6 +174,8 @@ export const sessionSets = sqliteTable(
     calories: integer('calories'),
     restSec: integer('rest_sec'),
     completedAt: integer('completed_at'),
+    /** The set was a personal record when it was completed (same exercise + machine, warm-ups excluded). */
+    isPr: integer('is_pr', { mode: 'boolean' }).notNull().default(false),
   },
   (t) => [
     index('session_sets_session_idx').on(t.sessionId),

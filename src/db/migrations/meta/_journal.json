@@ -22,6 +22,13 @@
       "when": 1792205774885,
       "tag": "0002_machine_photo",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792253847096,
+      "tag": "0003_personal_records",
+      "breakpoints": true
     }
   ]
 }

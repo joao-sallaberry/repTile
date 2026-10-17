@@ -82,3 +82,9 @@ export function compareWodResults(type: 'amrap' | 'for_time' | 'emom', a: WodRes
   const score = (r: WodResult) => (r.resultRounds ?? 0) * 10_000 + (r.resultReps ?? 0);
   return score(a) - score(b);
 }
+
+/** Whether a WOD result beats every earlier result of the same routine (never on the first time). */
+export function isWodPR(type: 'amrap' | 'for_time' | 'emom', result: WodResult, previous: WodResult[]): boolean {
+  if (type === 'emom' || !previous.length) return false;
+  return previous.every((p) => compareWodResults(type, result, p) > 0);
+}

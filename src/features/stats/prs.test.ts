@@ -1,4 +1,4 @@
-import { compareWodResults, computePRs, estimateOneRepMax, isNewPR, type PerformedSet } from './prs';
+import { compareWodResults, computePRs, estimateOneRepMax, isNewPR, isWodPR, type PerformedSet } from './prs';
 
 const set = (sessionId: string, weight: number, reps: number, at = 0): PerformedSet => ({
   sessionId, weight, reps, completedAt: at,
@@ -39,4 +39,13 @@ test('compareWodResults', () => {
   expect(compareWodResults('for_time', t(900), r(5, 0))).toBeGreaterThan(0);
   expect(compareWodResults('amrap', r(10, 5), r(10, 3))).toBeGreaterThan(0);
   expect(compareWodResults('amrap', r(9, 30), r(10, 0))).toBeLessThan(0);
+});
+
+test('isWodPR', () => {
+  const t = (s: number) => ({ resultTimeSec: s, resultRounds: null, resultReps: null });
+  expect(isWodPR('for_time', t(400), [])).toBe(false); // the first time doesn't count
+  expect(isWodPR('for_time', t(400), [t(420), t(450)])).toBe(true);
+  expect(isWodPR('for_time', t(400), [t(420), t(380)])).toBe(false);
+  expect(isWodPR('for_time', t(400), [t(400)])).toBe(false); // a tie isn't a record
+  expect(isWodPR('emom', t(400), [t(500)])).toBe(false);
 });

@@ -7,9 +7,8 @@ import { Button, Card, Chip, Divider, IconButton, List, Menu, Text } from 'react
 
 import { db } from '@/db/client';
 import { sessions, workoutItems, workoutItemSets, workouts } from '@/db/schema';
-import { useCurrentLocation } from '@/features/places/current';
 import { useLocation, useMachineMap } from '@/features/places/queries';
-import { getActiveSession, startSession } from '@/features/session/repo';
+import { beginRoutine } from '@/features/session/begin';
 import { compareWodResults } from '@/features/stats/prs';
 import { describeItem, describeResult, describeTargets, describeWorkoutFormat } from '@/features/workouts/describe';
 import { useExerciseMap } from '@/features/workouts/queries';
@@ -59,24 +58,11 @@ export default function WorkoutDetailScreen() {
       : null;
 
   const start = async () => {
-    const active = await getActiveSession();
-    const go = async () => {
-      setStarting(true);
-      try {
-        const sessionId = await startSession(workout.id, useCurrentLocation.getState().id);
-        router.push({ pathname: '/session/[id]', params: { id: sessionId } });
-      } finally {
-        setStarting(false);
-      }
-    };
-    if (active) {
-      Alert.alert('Treino em andamento', `Você ainda não finalizou "${active.name}".`, [
-        { text: 'Retomar', onPress: () => router.push({ pathname: '/session/[id]', params: { id: active.id } }) },
-        { text: 'Iniciar novo mesmo assim', onPress: go },
-        { text: 'Cancelar', style: 'cancel' },
-      ]);
-    } else {
-      await go();
+    setStarting(true);
+    try {
+      await beginRoutine(workout.id);
+    } finally {
+      setStarting(false);
     }
   };
 

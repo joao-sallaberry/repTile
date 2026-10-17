@@ -110,6 +110,16 @@ export function StrengthSession({ session, onFinish }: Props) {
 
       <RestTimerBar sessionId={session.id} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {groups.length === 0 && (
+          <Card mode="outlined">
+            <Card.Content style={styles.empty}>
+              <Text variant="titleMedium">Treino livre</Text>
+              <Text variant="bodyMedium" style={styles.muted}>
+                Adicione os exercícios conforme for fazendo. No fim, dá para salvar como rotina.
+              </Text>
+            </Card.Content>
+          </Card>
+        )}
         {groups.map(({ position, sets: groupSets }) => (
           <ExerciseCard
             key={position}
@@ -393,6 +403,7 @@ function SetRow({
 }
 
 const styles = StyleSheet.create({
+  empty: { gap: 4 },
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center' },
   noMargin: { margin: 0 },

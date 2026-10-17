@@ -2,12 +2,12 @@ import { eq } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
-import { Button, Dialog, IconButton, Portal, TextInput } from 'react-native-paper';
+import { Alert, StyleSheet } from 'react-native';
+import { Button, Checkbox, Dialog, IconButton, Portal, TextInput } from 'react-native-paper';
 
 import { db } from '@/db/client';
 import { sessions } from '@/db/schema';
-import { deleteSession, finishSession, type SessionResult } from '@/features/session/repo';
+import { deleteSession, finishSession, saveSessionAsRoutine, type SessionResult } from '@/features/session/repo';
 import { StrengthSession } from '@/features/session/strength-session';
 import { WodSession } from '@/features/session/wod-session';
 import { useTimerStore } from '@/features/timer/store';
@@ -32,12 +32,17 @@ export default function SessionScreen() {
   const { data: session } = useLiveQuery(db.query.sessions.findFirst({ where: eq(sessions.id, id) }), [id]);
   const [finishOpen, setFinishOpen] = useState(false);
   const [notes, setNotes] = useState('');
+  const [saveRoutine, setSaveRoutine] = useState(false);
+  const [routineName, setRoutineName] = useState('');
   const elapsed = useElapsed(session?.startedAt ?? 0);
 
   if (!session) return null;
 
+  const isFree = session.type === 'strength' && !session.workoutId;
+
   const save = async (result: SessionResult) => {
     await finishSession(session.id, result);
+    if (isFree && saveRoutine && routineName.trim()) await saveSessionAsRoutine(session.id, routineName.trim());
     stopTimerFor(session.id);
     router.replace({ pathname: '/history/[id]', params: { id: session.id } });
   };
@@ -74,10 +79,26 @@ export default function SessionScreen() {
           <Dialog.Title>Finalizar treino</Dialog.Title>
           <Dialog.Content>
             <TextInput mode="outlined" label="Como foi? (opcional)" multiline value={notes} onChangeText={setNotes} />
+            {isFree && (
+              <>
+                <Checkbox.Item
+                  label="Salvar como rotina"
+                  status={saveRoutine ? 'checked' : 'unchecked'}
+                  onPress={() => setSaveRoutine((v) => !v)}
+                  style={styles.checkbox}
+                />
+                {saveRoutine && (
+                  <TextInput mode="outlined" label="Nome da rotina" value={routineName} onChangeText={setRoutineName} />
+                )}
+              </>
+            )}
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setFinishOpen(false)}>Voltar</Button>
-            <Button mode="contained" onPress={() => save({ notes: notes.trim() || null })}>
+            <Button
+              mode="contained"
+              disabled={isFree && saveRoutine && !routineName.trim()}
+              onPress={() => save({ notes: notes.trim() || null })}>
               Finalizar
             </Button>
           </Dialog.Actions>
@@ -86,3 +107,7 @@ export default function SessionScreen() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  checkbox: { paddingHorizontal: 0 },
+});

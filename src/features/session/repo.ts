@@ -1,10 +1,10 @@
-import { and, asc, desc, eq, gt, isNotNull, isNull, max, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNotNull, isNull, max, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { sessions, sessionSets, type SessionSet, type SetType } from '@/db/schema';
 import { linkMachineToExercise, linkMachineToLocation } from '@/features/places/repo';
-import { isNewPR, type PerformedSet } from '@/features/stats/prs';
-import { getWorkoutDraft } from '@/features/workouts/repo';
+import { isNewPR, isWodPR, type PerformedSet } from '@/features/stats/prs';
+import { getWorkoutDraft, newSet, saveWorkout, type WorkoutItemDraft } from '@/features/workouts/repo';
 import { createdFields, touched } from '@/lib/ids';
 
 import { countsTowardStats, pairPrevious } from './sets';
@@ -118,6 +118,63 @@ export async function startSession(workoutId: string, fallbackLocationId: string
   });
 }
 
+/** Starts a strength session with no routine ("Treino livre"); exercises are added during it. */
+export async function startEmptySession(locationId: string | null = null): Promise<string> {
+  const session = createdFields();
+  await db.insert(sessions).values({
+    ...session,
+    workoutId: null,
+    name: 'Treino livre',
+    type: 'strength',
+    locationId,
+    startedAt: Date.now(),
+  });
+  return session.id;
+}
+
+/** Creates a strength routine from what was done in a session (e.g. after a "Treino livre"). */
+export async function saveSessionAsRoutine(sessionId: string, name: string): Promise<string> {
+  const rows = await db.query.sessionSets.findMany({
+    where: and(eq(sessionSets.sessionId, sessionId), isNull(sessionSets.deletedAt)),
+    orderBy: [asc(sessionSets.position), asc(sessionSets.setIndex)],
+  });
+  const byPosition = new Map<number, WorkoutItemDraft>();
+  for (const r of rows) {
+    let item = byPosition.get(r.position);
+    if (!item) {
+      item = {
+        exerciseId: r.exerciseId,
+        machineId: r.machineId,
+        sets: [],
+        reps: null,
+        weight: null,
+        durationSec: null,
+        distanceM: null,
+        calories: null,
+        restSec: r.restSec,
+        notes: null,
+      };
+      byPosition.set(r.position, item);
+    }
+    const { reps, weight, durationSec, distanceM, calories } = r;
+    item.sets.push(newSet(r.type, { reps, weight, durationSec, distanceM, calories }));
+  }
+  const id = await saveWorkout(null, {
+    name,
+    type: 'strength',
+    notes: null,
+    durationSec: null,
+    intervalSec: null,
+    rounds: null,
+    timeCapSec: null,
+    locationId: null,
+    items: [...byPosition.values()],
+  });
+  // The session now counts as a run of the new routine (rotation, history).
+  await db.update(sessions).set({ workoutId: id, name, ...touched() }).where(eq(sessions.id, sessionId));
+  return id;
+}
+
 export async function getActiveSession() {
   return db.query.sessions.findFirst({
     where: and(isNull(sessions.finishedAt), isNull(sessions.deletedAt)),
@@ -129,12 +186,11 @@ type SetValues = Partial<Pick<SessionSet, 'reps' | 'weight' | 'durationSec' | 'd
 
 export async function updateSet(id: string, values: SetValues) {
   await db.update(sessionSets).set({ ...values, ...touched() }).where(eq(sessionSets.id, id));
+  await refreshSetPr(id);
 }
 
-/** Marks the set as done. Returns `true` if it is a new personal record (same machine, warm-ups excluded). */
-export async function completeSet(set: SessionSet): Promise<boolean> {
-  const completedAt = Date.now();
-  await db.update(sessionSets).set({ completedAt, ...touched() }).where(eq(sessionSets.id, set.id));
+/** Whether a completed set beats the earlier sessions on the same exercise and machine. */
+async function isSetPr(set: SessionSet, completedAt: number): Promise<boolean> {
   if (!countsTowardStats(set.type)) return false;
   const previous = await performedSets(set.exerciseId, { machineId: set.machineId, excludeSessionId: set.sessionId });
   return isNewPR(
@@ -143,8 +199,25 @@ export async function completeSet(set: SessionSet): Promise<boolean> {
   );
 }
 
+/** Re-evaluates the stored PR flag after a completed set is edited. */
+async function refreshSetPr(id: string) {
+  const set = await db.query.sessionSets.findFirst({ where: eq(sessionSets.id, id) });
+  if (!set?.completedAt) return;
+  const isPr = await isSetPr(set, set.completedAt);
+  if (isPr !== set.isPr) await db.update(sessionSets).set({ isPr, ...touched() }).where(eq(sessionSets.id, id));
+}
+
+/** Marks the set as done. Returns `true` if it is a new personal record (same machine, warm-ups excluded). */
+export async function completeSet(set: SessionSet): Promise<boolean> {
+  const completedAt = Date.now();
+  const isPr = await isSetPr(set, completedAt);
+  await db.update(sessionSets).set({ completedAt, isPr, ...touched() }).where(eq(sessionSets.id, set.id));
+  return isPr;
+}
+
 export async function setSetType(id: string, type: SetType) {
   await db.update(sessionSets).set({ type, ...touched() }).where(eq(sessionSets.id, id));
+  await refreshSetPr(id);
 }
 
 /** Sets the machine for every set of an exercise in the session, and links it to the exercise and location. */
@@ -164,7 +237,7 @@ export async function setSessionLocation(sessionId: string, locationId: string |
 }
 
 export async function uncompleteSet(id: string) {
-  await db.update(sessionSets).set({ completedAt: null, ...touched() }).where(eq(sessionSets.id, id));
+  await db.update(sessionSets).set({ completedAt: null, isPr: false, ...touched() }).where(eq(sessionSets.id, id));
 }
 
 /**
@@ -257,6 +330,18 @@ export async function finishSession(id: string, result: SessionResult = {}) {
         .update(sessionSets)
         .set({ completedAt: finishedAt, ...touched() })
         .where(and(eq(sessionSets.sessionId, id), isNull(sessionSets.completedAt)));
+      if (s.workoutId) {
+        const previous = await tx.query.sessions.findMany({
+          where: and(
+            eq(sessions.workoutId, s.workoutId),
+            ne(sessions.id, id),
+            isNotNull(sessions.finishedAt),
+            isNull(sessions.deletedAt),
+          ),
+        });
+        const isPr = isWodPR(s.type, s, previous);
+        if (isPr) await tx.update(sessions).set({ isPr, ...touched() }).where(eq(sessions.id, id));
+      }
     }
   });
 }
