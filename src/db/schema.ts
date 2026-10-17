@@ -19,6 +19,10 @@ const syncColumns = {
 export const MEASURES = ['weight_reps', 'reps', 'time', 'distance', 'calories'] as const;
 export type Measure = (typeof MEASURES)[number];
 
+/** What an exercise is done with. Only `machine` exercises get a specific machine picked in routines and sessions. */
+export const EQUIPMENT = ['none', 'barbell', 'band', 'dumbbell', 'suspension', 'kettlebell', 'machine', 'other'] as const;
+export type Equipment = (typeof EQUIPMENT)[number];
+
 /**
  * A workout is a list of blocks (ADR 0010): plain exercises (sets, warm-ups, rest) or a
  * timed WOD block (AMRAP, EMOM, For Time) with its own movements.
@@ -78,6 +82,7 @@ export const exercises = sqliteTable('exercises', {
   name: text('name').notNull(),
   category: text('category').notNull(),
   measure: text('measure', { enum: MEASURES }).notNull(),
+  equipment: text('equipment', { enum: EQUIPMENT }).notNull().default('none'),
   isCustom: integer('is_custom', { mode: 'boolean' }).notNull().default(false),
 });
 

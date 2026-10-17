@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { FlatList, StyleSheet } from 'react-native';
-import { Button, Dialog, List, Portal, SegmentedButtons, Searchbar, Text, TextInput } from 'react-native-paper';
+import type { ViewStyle } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
+import { Button, Chip, Dialog, List, Portal, SegmentedButtons, Searchbar, Text, TextInput } from 'react-native-paper';
 
-import { MEASURES, type Measure } from '@/db/schema';
+import { EQUIPMENT, MEASURES, type Equipment, type Exercise, type Measure } from '@/db/schema';
 import { useExercises } from '@/features/workouts/queries';
 import { createExercise } from '@/features/workouts/repo';
 
@@ -14,6 +15,76 @@ export const MEASURE_LABEL: Record<Measure, string> = {
   calories: 'Calorias',
 };
 
+export const EQUIPMENT_LABEL: Record<Equipment, string> = {
+  none: 'Nenhum',
+  barbell: 'Barra',
+  band: 'Elástico',
+  dumbbell: 'Halter',
+  suspension: 'Fita de suspensão',
+  kettlebell: 'Kettlebell',
+  machine: 'Máquina',
+  other: 'Outro',
+};
+
+/** "Barra", or "Sem equipamento" for bodyweight exercises. */
+export const equipmentText = (e: Pick<Exercise, 'equipment'>) =>
+  e.equipment === 'none' ? 'Sem equipamento' : EQUIPMENT_LABEL[e.equipment];
+
+/** One chip per equipment, single choice. */
+export function EquipmentChips({ value, onChange }: { value: Equipment; onChange: (e: Equipment) => void }) {
+  return (
+    <View style={styles.chips}>
+      {EQUIPMENT.map((e) => (
+        <Chip key={e} compact selected={value === e} showSelectedOverlay onPress={() => onChange(e)}>
+          {EQUIPMENT_LABEL[e]}
+        </Chip>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Horizontal equipment filter: several can be picked, none picked = all.
+ * Only lists the equipment some exercise in `exercises` uses.
+ */
+export function EquipmentFilter({
+  exercises,
+  value,
+  onChange,
+  style,
+}: {
+  exercises: Pick<Exercise, 'equipment'>[];
+  value: Equipment[];
+  onChange: (v: Equipment[]) => void;
+  style?: ViewStyle;
+}) {
+  const used = EQUIPMENT.filter((e) => value.includes(e) || exercises.some((x) => x.equipment === e));
+  if (used.length < 2) return null;
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={[styles.filter, style]}>
+      <Chip selected={value.length === 0} showSelectedOverlay onPress={() => onChange([])}>
+        Todos
+      </Chip>
+      {used.map((e) => (
+        <Chip
+          key={e}
+          selected={value.includes(e)}
+          showSelectedOverlay
+          onPress={() => onChange(value.includes(e) ? value.filter((v) => v !== e) : [...value, e])}>
+          {e === 'none' ? 'Sem equipamento' : EQUIPMENT_LABEL[e]}
+        </Chip>
+      ))}
+    </ScrollView>
+  );
+}
+
+/** Search text + equipment filter. */
+export function matchesExercise(e: Exercise, query: string, equipment: Equipment[]) {
+  if (equipment.length && !equipment.includes(e.equipment)) return false;
+  const q = normalize(query);
+  return !q || normalize(`${e.name} ${e.category}`).includes(q);
+}
+
 type Props = {
   visible: boolean;
   onDismiss: () => void;
@@ -24,12 +95,10 @@ type Props = {
 export function ExercisePicker({ visible, onDismiss, onPick }: Props) {
   const all = useExercises();
   const [query, setQuery] = useState('');
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [creating, setCreating] = useState(false);
 
-  const filtered = useMemo(() => {
-    const q = normalize(query);
-    return q ? all.filter((e) => normalize(`${e.name} ${e.category}`).includes(q)) : all;
-  }, [all, query]);
+  const filtered = useMemo(() => all.filter((e) => matchesExercise(e, query, equipment)), [all, query, equipment]);
 
   const pick = (id: string) => {
     onPick(id);
@@ -54,6 +123,7 @@ export function ExercisePicker({ visible, onDismiss, onPick }: Props) {
           <>
             <Dialog.Content>
               <Searchbar placeholder="Buscar" value={query} onChangeText={setQuery} autoFocus={false} />
+              <EquipmentFilter exercises={all} value={equipment} onChange={setEquipment} />
             </Dialog.Content>
             <Dialog.ScrollArea style={styles.scroll}>
               <FlatList
@@ -63,7 +133,7 @@ export function ExercisePicker({ visible, onDismiss, onPick }: Props) {
                 renderItem={({ item }) => (
                   <List.Item
                     title={item.name}
-                    description={`${item.category} · ${MEASURE_LABEL[item.measure]}`}
+                    description={`${item.category} · ${equipmentText(item)}`}
                     onPress={() => pick(item.id)}
                   />
                 )}
@@ -93,12 +163,15 @@ export function NewExerciseForm({
   const [name, setName] = useState(initialName);
   const [category, setCategory] = useState('');
   const [measure, setMeasure] = useState<Measure>('weight_reps');
+  const [equipment, setEquipment] = useState<Equipment>('none');
 
   return (
     <>
       <Dialog.Content style={styles.form}>
         <TextInput mode="outlined" label="Nome" value={name} onChangeText={setName} />
         <TextInput mode="outlined" label="Categoria (ex.: Pernas)" value={category} onChangeText={setCategory} />
+        <Text variant="labelLarge">Equipamento</Text>
+        <EquipmentChips value={equipment} onChange={setEquipment} />
         <Text variant="labelLarge">Como medir</Text>
         <SegmentedButtons
           value={measure}
@@ -118,7 +191,7 @@ export function NewExerciseForm({
         <Button
           disabled={!name.trim()}
           onPress={async () =>
-            onCreated(await createExercise({ name: name.trim(), category: category.trim() || 'Outros', measure }))
+            onCreated(await createExercise({ name: name.trim(), category: category.trim() || 'Outros', measure, equipment }))
           }>
           Criar
         </Button>
@@ -135,5 +208,9 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 0, maxHeight: 420 },
   empty: { padding: 24, textAlign: 'center' },
   form: { gap: 12 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  // A horizontal ScrollView next to a flex list gets squeezed to nothing unless it can't shrink.
+  filterScroll: { flexGrow: 0, flexShrink: 0 },
+  filter: { gap: 6, paddingTop: 8, alignItems: 'center' },
 });
 

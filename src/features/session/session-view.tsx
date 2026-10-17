@@ -5,7 +5,7 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, IconButton, Menu, Snackbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
 import { DurationField } from '@/components/duration-field';
-import { ExercisePicker } from '@/components/exercise-picker';
+import { equipmentText, ExercisePicker } from '@/components/exercise-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
 import { MachineThumb } from '@/components/machine-thumb';
@@ -286,22 +286,28 @@ function ExerciseCard({
           <Text variant="titleMedium" style={{ color: theme.colors.primary }}>
             {exercise?.name ?? 'Exercício'}
           </Text>
-          <TouchableRipple
-            onPress={() => setMachineOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel={machine ? `Máquina: ${machine.name}. Toque para trocar` : 'Associar uma máquina'}
-            style={styles.machineChip}>
-            <View style={styles.row}>
-              {machine?.photo ? (
-                <MachineThumb photo={machine.photo} size={28} style={styles.machineThumb} />
-              ) : (
-                <IconButton icon="cog-outline" size={14} style={styles.noMargin} />
-              )}
-              <Text variant="bodySmall" style={styles.muted}>
-                {machine?.name ?? 'Sem máquina · escolher'}
-              </Text>
-            </View>
-          </TouchableRipple>
+          {exercise && exercise.equipment !== 'machine' && !machine ? (
+            <Text variant="bodySmall" style={styles.muted}>
+              {equipmentText(exercise)}
+            </Text>
+          ) : (
+            <TouchableRipple
+              onPress={() => setMachineOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={machine ? `Máquina: ${machine.name}. Toque para trocar` : 'Associar uma máquina'}
+              style={styles.machineChip}>
+              <View style={styles.row}>
+                {machine?.photo ? (
+                  <MachineThumb photo={machine.photo} size={28} style={styles.machineThumb} />
+                ) : (
+                  <IconButton icon="cog-outline" size={14} style={styles.noMargin} />
+                )}
+                <Text variant="bodySmall" style={styles.muted}>
+                  {machine?.name ?? 'Sem máquina · escolher'}
+                </Text>
+              </View>
+            </TouchableRipple>
+          )}
         </View>
         {restSec ? (
           <Text variant="labelMedium" style={[styles.restChip, { backgroundColor: theme.colors.secondaryContainer }]}>

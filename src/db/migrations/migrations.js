@@ -6,6 +6,7 @@ import m0001 from './0001_locations_machines_set_types.sql';
 import m0002 from './0002_machine_photo.sql';
 import m0003 from './0003_personal_records.sql';
 import m0004 from './0004_blocks.sql';
+import m0005 from './0005_exercise_equipment.sql';
 
   export default {
     journal,
@@ -14,7 +15,8 @@ import m0004 from './0004_blocks.sql';
 m0001,
 m0002,
 m0003,
-m0004
+m0004,
+m0005
     }
   }
   

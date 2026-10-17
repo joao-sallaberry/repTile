@@ -1,29 +1,26 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { SectionList, StyleSheet, View } from 'react-native';
-import { Appbar, Dialog, FAB, List, Portal, Searchbar } from 'react-native-paper';
+import { Appbar, Dialog, FAB, List, Portal, Searchbar, Text } from 'react-native-paper';
 
-import { MEASURE_LABEL, NewExerciseForm } from '@/components/exercise-picker';
-import type { Exercise } from '@/db/schema';
+import { EquipmentFilter, equipmentText, matchesExercise, MEASURE_LABEL, NewExerciseForm } from '@/components/exercise-picker';
+import type { Equipment, Exercise } from '@/db/schema';
 import { useExercises } from '@/features/workouts/queries';
-
-const normalize = (s: string) =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 export default function ExercisesScreen() {
   const all = useExercises();
   const [query, setQuery] = useState('');
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [creating, setCreating] = useState(false);
 
   const sections = useMemo(() => {
-    const q = normalize(query);
     const groups = new Map<string, Exercise[]>();
     for (const e of all) {
-      if (q && !normalize(`${e.name} ${e.category}`).includes(q)) continue;
+      if (!matchesExercise(e, query, equipment)) continue;
       groups.set(e.category, [...(groups.get(e.category) ?? []), e]);
     }
     return [...groups.entries()].map(([title, data]) => ({ title, data }));
-  }, [all, query]);
+  }, [all, query, equipment]);
 
   return (
     <View style={styles.flex}>
@@ -31,15 +28,17 @@ export default function ExercisesScreen() {
         <Appbar.Content title="Exercícios e PRs" />
       </Appbar.Header>
       <Searchbar placeholder="Buscar exercício" value={query} onChangeText={setQuery} style={styles.search} />
+      <EquipmentFilter exercises={all} value={equipment} onChange={setEquipment} style={styles.filter} />
       <SectionList
         sections={sections}
         keyExtractor={(e) => e.id}
         contentContainerStyle={styles.list}
+        ListEmptyComponent={<Text style={styles.empty}>Nenhum exercício encontrado</Text>}
         renderSectionHeader={({ section }) => <List.Subheader>{section.title}</List.Subheader>}
         renderItem={({ item }) => (
           <List.Item
             title={item.name}
-            description={MEASURE_LABEL[item.measure]}
+            description={`${equipmentText(item)} · ${MEASURE_LABEL[item.measure]}`}
             right={(p) => <List.Icon {...p} icon="chevron-right" />}
             onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: item.id } })}
           />
@@ -59,6 +58,8 @@ export default function ExercisesScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   search: { marginHorizontal: 16, marginBottom: 8 },
+  filter: { paddingHorizontal: 16, paddingTop: 0, paddingBottom: 8 },
+  empty: { padding: 24, textAlign: 'center', opacity: 0.7 },
   list: { paddingBottom: 96 },
   fab: { position: 'absolute', right: 16, bottom: 16 },
 });

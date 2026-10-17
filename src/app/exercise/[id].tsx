@@ -3,17 +3,17 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { Card, Chip, IconButton, List, Text } from 'react-native-paper';
+import { Button, Card, Chip, Dialog, IconButton, List, Portal, Text } from 'react-native-paper';
 
 import { BarChart } from '@/components/bar-chart';
-import { MEASURE_LABEL } from '@/components/exercise-picker';
+import { EquipmentChips, equipmentText, MEASURE_LABEL } from '@/components/exercise-picker';
 import { db } from '@/db/client';
-import { exercises, sessionSets } from '@/db/schema';
+import { exercises, sessionSets, type Equipment } from '@/db/schema';
 import { useMachineMap } from '@/features/places/queries';
 import { performedSets, type PerformedSetRow } from '@/features/session/repo';
 import { countsTowardStats } from '@/features/session/sets';
 import { computePRs, estimateOneRepMax, type PerformedSet } from '@/features/stats/prs';
-import { deleteExercise } from '@/features/workouts/repo';
+import { deleteExercise, updateExercise } from '@/features/workouts/repo';
 import { formatDate, formatWeight } from '@/lib/format';
 
 const shortDate = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' });
@@ -27,6 +27,7 @@ export default function ExerciseDetailScreen() {
   // undefined = every machine; null = without a machine
   const [machineFilter, setMachineFilter] = useState<string | null | undefined>(undefined);
   const machineMap = useMachineMap();
+  const [equipment, setEquipment] = useState<Equipment | null>(null);
 
   useEffect(() => {
     performedSets(id).then((rows) => setAllSets(rows.filter((r) => countsTowardStats(r.type))));
@@ -79,6 +80,35 @@ export default function ExerciseDetailScreen() {
       <Text variant="bodyMedium">
         {exercise.category} · {MEASURE_LABEL[exercise.measure]}
       </Text>
+      <View style={styles.chips}>
+        <Chip icon="pencil-outline" onPress={() => setEquipment(exercise.equipment)} accessibilityLabel="Alterar equipamento">
+          {equipmentText(exercise)}
+        </Chip>
+      </View>
+      <Portal>
+        <Dialog visible={equipment != null} onDismiss={() => setEquipment(null)}>
+          <Dialog.Title>Equipamento</Dialog.Title>
+          <Dialog.Content>
+            <EquipmentChips value={equipment ?? exercise.equipment} onChange={setEquipment} />
+            {equipment === 'machine' && (
+              <Text variant="bodySmall" style={styles.hint}>
+                No treino você escolhe a máquina específica; o “Anterior” e os PRs ficam separados por máquina.
+              </Text>
+            )}
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setEquipment(null)}>Cancelar</Button>
+            <Button
+              mode="contained"
+              onPress={async () => {
+                if (equipment) await updateExercise(exercise.id, { equipment });
+                setEquipment(null);
+              }}>
+              Salvar
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
 
       {machineIds.length > 1 || (machineIds.length === 1 && machineIds[0] != null) ? (
         <View style={styles.chips}>
@@ -155,4 +185,5 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stat: { flexBasis: '48%', flexGrow: 1 },
   empty: { textAlign: 'center', padding: 24, opacity: 0.7 },
+  hint: { marginTop: 12, opacity: 0.7 },
 });

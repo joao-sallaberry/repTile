@@ -16,7 +16,7 @@ import {
 
 import { BlockConfigFields } from '@/components/block-config-fields';
 import { DurationField } from '@/components/duration-field';
-import { ExercisePicker } from '@/components/exercise-picker';
+import { equipmentText, ExercisePicker } from '@/components/exercise-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
 import { NumberField } from '@/components/number-field';
@@ -280,13 +280,15 @@ function BlockEditor({
       <Card key={item.id ?? `new-${i}`} mode="contained">
         <Card.Title
           title={ex?.name ?? 'Exercício removido'}
-          subtitle={item.machineId ? `⚙ ${machineMap.get(item.machineId)?.name ?? ''}` : ex?.category}
+          subtitle={item.machineId ? `⚙ ${machineMap.get(item.machineId)?.name ?? ''}` : ex && `${ex.category} · ${equipmentText(ex)}`}
           right={() => actions}
         />
         <Card.Content>
-          <Button compact icon="cog-outline" mode="text" style={styles.machineBtn} onPress={() => onPickMachine(i)}>
-            {item.machineId ? 'Trocar máquina' : 'Sem máquina · adicionar'}
-          </Button>
+          {(ex?.equipment === 'machine' || item.machineId) && (
+            <Button compact icon="cog-outline" mode="text" style={styles.machineBtn} onPress={() => onPickMachine(i)}>
+              {item.machineId ? 'Trocar máquina' : 'Sem máquina · adicionar'}
+            </Button>
+          )}
           <ItemFields kind={block.kind} exercise={ex} item={item} onChange={(patch) => setItem(i, patch)} />
         </Card.Content>
       </Card>

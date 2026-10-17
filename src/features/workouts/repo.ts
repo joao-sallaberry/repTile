@@ -8,6 +8,7 @@ import {
   workoutItemSets,
   workouts,
   type BlockKind,
+  type Equipment,
   type Measure,
   type SetType,
 } from '@/db/schema';
@@ -257,10 +258,14 @@ export async function deleteWorkout(id: string) {
   });
 }
 
-export async function createExercise(input: { name: string; category: string; measure: Measure }) {
+export async function createExercise(input: { name: string; category: string; measure: Measure; equipment: Equipment }) {
   const row = { ...createdFields(), ...input, isCustom: true };
   await db.insert(exercises).values(row);
   return row.id;
+}
+
+export async function updateExercise(id: string, patch: { equipment: Equipment }) {
+  await db.update(exercises).set({ ...patch, ...touched() }).where(eq(exercises.id, id));
 }
 
 export async function deleteExercise(id: string) {
