@@ -310,6 +310,9 @@ export async function updateWodProgress(id: string, values: { resultRounds?: num
 }
 
 export type SessionResult = {
+  /** Adjusted start/end times (ms); default: keep the start, end now. */
+  startedAt?: number;
+  finishedAt?: number;
   resultTimeSec?: number | null;
   resultRounds?: number | null;
   resultReps?: number | null;
@@ -317,8 +320,7 @@ export type SessionResult = {
   notes?: string | null;
 };
 
-export async function finishSession(id: string, result: SessionResult = {}) {
-  const finishedAt = Date.now();
+export async function finishSession(id: string, { finishedAt = Date.now(), ...result }: SessionResult = {}) {
   await db.transaction(async (tx) => {
     await tx
       .update(sessions)

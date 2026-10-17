@@ -71,7 +71,8 @@
           "photosPermission": "O RepTile usa suas fotos para ilustrar as máquinas da academia.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
