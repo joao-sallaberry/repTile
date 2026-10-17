@@ -50,6 +50,10 @@ export default function RootLayout() {
               <Stack.Screen name="session/[id]" options={{ title: 'Treino em andamento' }} />
               <Stack.Screen name="history/[id]" options={{ title: 'Sessão' }} />
               <Stack.Screen name="exercise/[id]" options={{ title: 'Exercício' }} />
+              <Stack.Screen name="locations/index" options={{ title: 'Locais' }} />
+              <Stack.Screen name="locations/new" options={{ title: 'Novo local', presentation: 'modal' }} />
+              <Stack.Screen name="locations/[id]" options={{ title: 'Local' }} />
+              <Stack.Screen name="machines/[id]" options={{ title: 'Máquina' }} />
             </Stack>
           ) : null}
         </ThemeProvider>

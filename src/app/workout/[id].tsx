@@ -6,10 +6,12 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Chip, Divider, IconButton, List, Menu, Text } from 'react-native-paper';
 
 import { db } from '@/db/client';
-import { sessions, workoutItems, workouts } from '@/db/schema';
+import { sessions, workoutItems, workoutItemSets, workouts } from '@/db/schema';
+import { useCurrentLocation } from '@/features/places/current';
+import { useLocation, useMachineMap } from '@/features/places/queries';
 import { getActiveSession, startSession } from '@/features/session/repo';
 import { compareWodResults } from '@/features/stats/prs';
-import { describeItem, describeResult, describeWorkoutFormat } from '@/features/workouts/describe';
+import { describeItem, describeResult, describeTargets, describeWorkoutFormat } from '@/features/workouts/describe';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { deleteWorkout, duplicateWorkout } from '@/features/workouts/repo';
 import { formatDate } from '@/lib/format';
@@ -24,10 +26,18 @@ export default function WorkoutDetailScreen() {
   const { data: workout } = useLiveQuery(
     db.query.workouts.findFirst({
       where: and(eq(workouts.id, id), isNull(workouts.deletedAt)),
-      with: { items: { where: isNull(workoutItems.deletedAt), orderBy: asc(workoutItems.position) } },
+      with: {
+        items: {
+          where: isNull(workoutItems.deletedAt),
+          orderBy: asc(workoutItems.position),
+          with: { targetSets: { where: isNull(workoutItemSets.deletedAt), orderBy: asc(workoutItemSets.position) } },
+        },
+      },
     }),
     [id],
   );
+  const machineMap = useMachineMap();
+  const location = useLocation(workout?.locationId);
   const { data: history } = useLiveQuery(
     db
       .select()
@@ -53,7 +63,7 @@ export default function WorkoutDetailScreen() {
     const go = async () => {
       setStarting(true);
       try {
-        const sessionId = await startSession(workout.id);
+        const sessionId = await startSession(workout.id, useCurrentLocation.getState().id);
         router.push({ pathname: '/session/[id]', params: { id: sessionId } });
       } finally {
         setStarting(false);
@@ -128,6 +138,7 @@ export default function WorkoutDetailScreen() {
         <View style={styles.chips}>
           <Chip icon="tag">{WORKOUT_TYPE_LABEL[workout.type]}</Chip>
           {format && <Chip icon="timer-outline">{format}</Chip>}
+          {location && <Chip icon="map-marker-outline">{location.name}</Chip>}
         </View>
         {workout.notes ? <Text variant="bodyMedium">{workout.notes}</Text> : null}
 
@@ -137,7 +148,17 @@ export default function WorkoutDetailScreen() {
               {i > 0 && <Divider />}
               <List.Item
                 title={exerciseMap.get(item.exerciseId)?.name ?? '—'}
-                description={describeItem(item, workout.type) || undefined}
+                description={
+                  [
+                    workout.type === 'strength' && item.targetSets.length
+                      ? describeTargets(item.targetSets)
+                      : describeItem(item, workout.type),
+                    item.machineId ? `⚙ ${machineMap.get(item.machineId)?.name ?? ''}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join('\n') || undefined
+                }
+                descriptionNumberOfLines={3}
                 onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: item.exerciseId } })}
               />
             </View>

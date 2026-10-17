@@ -1,14 +1,36 @@
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';
-import { exercises, workoutItems, workouts, type Measure, type WorkoutType } from '@/db/schema';
+import {
+  exercises,
+  workoutItems,
+  workoutItemSets,
+  workouts,
+  type Measure,
+  type SetType,
+  type WorkoutType,
+} from '@/db/schema';
 import { createdFields, touched } from '@/lib/ids';
+
+/** Strength: the target of one set. */
+export type SetDraft = {
+  id?: string;
+  type: SetType;
+  reps: number | null;
+  weight: number | null;
+  durationSec: number | null;
+  distanceM: number | null;
+  calories: number | null;
+};
 
 export type WorkoutItemDraft = {
   /** Present when the item already exists in the database. */
   id?: string;
   exerciseId: string;
-  sets: number | null;
+  machineId: string | null;
+  /** Strength: one entry per set (weight and reps may vary). Empty for WODs. */
+  sets: SetDraft[];
+  /** WODs: reps/weight/etc. per round. */
   reps: number | null;
   weight: number | null;
   durationSec: number | null;
@@ -26,12 +48,23 @@ export type WorkoutDraft = {
   intervalSec: number | null;
   rounds: number | null;
   timeCapSec: number | null;
+  locationId: string | null;
   items: WorkoutItemDraft[];
 };
 
+export const newSet = (type: SetType = 'normal', from?: Partial<SetDraft>): SetDraft => ({
+  type,
+  reps: from?.reps ?? 10,
+  weight: from?.weight ?? null,
+  durationSec: from?.durationSec ?? null,
+  distanceM: from?.distanceM ?? null,
+  calories: from?.calories ?? null,
+});
+
 export const emptyItem = (exerciseId: string, type: WorkoutType): WorkoutItemDraft => ({
   exerciseId,
-  sets: type === 'strength' ? 3 : null,
+  machineId: null,
+  sets: type === 'strength' ? [newSet(), newSet(), newSet()] : [],
   reps: 10,
   weight: null,
   durationSec: null,
@@ -50,6 +83,7 @@ export function emptyWorkout(type: WorkoutType = 'strength'): WorkoutDraft {
     intervalSec: type === 'emom' ? 60 : null,
     rounds: type === 'emom' ? 10 : type === 'for_time' ? 3 : null,
     timeCapSec: type === 'for_time' ? 15 * 60 : null,
+    locationId: null,
     items: [],
   };
 }
@@ -57,7 +91,13 @@ export function emptyWorkout(type: WorkoutType = 'strength'): WorkoutDraft {
 export async function getWorkoutDraft(id: string): Promise<WorkoutDraft | null> {
   const w = await db.query.workouts.findFirst({
     where: and(eq(workouts.id, id), isNull(workouts.deletedAt)),
-    with: { items: { where: isNull(workoutItems.deletedAt), orderBy: asc(workoutItems.position) } },
+    with: {
+      items: {
+        where: isNull(workoutItems.deletedAt),
+        orderBy: asc(workoutItems.position),
+        with: { targetSets: { where: isNull(workoutItemSets.deletedAt), orderBy: asc(workoutItemSets.position) } },
+      },
+    },
   });
   if (!w) return null;
   return {
@@ -68,10 +108,25 @@ export async function getWorkoutDraft(id: string): Promise<WorkoutDraft | null> 
     intervalSec: w.intervalSec,
     rounds: w.rounds,
     timeCapSec: w.timeCapSec,
+    locationId: w.locationId,
     items: w.items.map((i) => ({
       id: i.id,
       exerciseId: i.exerciseId,
-      sets: i.sets,
+      machineId: i.machineId,
+      sets:
+        w.type !== 'strength'
+          ? []
+          : i.targetSets.length
+            ? i.targetSets.map((t) => ({
+                id: t.id,
+                type: t.type,
+                reps: t.reps,
+                weight: t.weight,
+                durationSec: t.durationSec,
+                distanceM: t.distanceM,
+                calories: t.calories,
+              }))
+            : Array.from({ length: Math.max(1, i.sets ?? 1) }, () => newSet('normal', i)),
       reps: i.reps,
       weight: i.weight,
       durationSec: i.durationSec,
@@ -109,14 +164,41 @@ export async function saveWorkout(id: string | null, draft: WorkoutDraft): Promi
         .where(inArray(workoutItems.id, removed));
     }
 
-    for (const [position, { id: itemId, ...item }] of items.entries()) {
+    for (const [position, { id: existingId, sets, ...item }] of items.entries()) {
+      const values = { ...item, position, sets: fields.type === 'strength' ? sets.length : null };
+      let itemId = existingId;
       if (itemId) {
-        await tx
-          .update(workoutItems)
-          .set({ ...item, position, ...touched() })
-          .where(eq(workoutItems.id, itemId));
+        await tx.update(workoutItems).set({ ...values, ...touched() }).where(eq(workoutItems.id, itemId));
       } else {
-        await tx.insert(workoutItems).values({ ...createdFields(), ...item, workoutId, position });
+        const created = createdFields();
+        itemId = created.id;
+        await tx.insert(workoutItems).values({ ...created, ...values, workoutId });
+      }
+
+      // Sync the per-set targets: update kept rows, insert new ones, soft-delete the rest.
+      const oldSets = await tx
+        .select({ id: workoutItemSets.id })
+        .from(workoutItemSets)
+        .where(and(eq(workoutItemSets.workoutItemId, itemId), isNull(workoutItemSets.deletedAt)));
+      const keepSets = new Set(sets.flatMap((st) => (st.id ? [st.id] : [])));
+      const removedSets = oldSets.map((o) => o.id).filter((sid) => !keepSets.has(sid));
+      if (removedSets.length) {
+        await tx
+          .update(workoutItemSets)
+          .set({ deletedAt: Date.now(), ...touched() })
+          .where(inArray(workoutItemSets.id, removedSets));
+      }
+      for (const [setPos, { id: setId, ...target }] of sets.entries()) {
+        if (setId) {
+          await tx
+            .update(workoutItemSets)
+            .set({ ...target, position: setPos, ...touched() })
+            .where(eq(workoutItemSets.id, setId));
+        } else {
+          await tx
+            .insert(workoutItemSets)
+            .values({ ...createdFields(), ...target, workoutItemId: itemId, position: setPos });
+        }
       }
     }
     return workoutId;
@@ -129,7 +211,7 @@ export async function duplicateWorkout(id: string): Promise<string | null> {
   return saveWorkout(null, {
     ...draft,
     name: `${draft.name} (cópia)`,
-    items: draft.items.map(({ id: _id, ...i }) => i),
+    items: draft.items.map(({ id: _id, sets, ...i }) => ({ ...i, sets: sets.map(({ id: _sid, ...st }) => st) })),
   });
 }
 

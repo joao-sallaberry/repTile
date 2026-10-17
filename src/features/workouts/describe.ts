@@ -1,4 +1,4 @@
-import type { WorkoutType } from '@/db/schema';
+import type { SetType, WorkoutType } from '@/db/schema';
 import { formatDuration, formatWeight } from '@/lib/format';
 
 type ItemLike = {
@@ -76,4 +76,27 @@ export function describeResult(s: ResultLike): string | null {
   } else if (s.type === 'emom' && s.resultRounds != null) text = `${s.resultRounds} rounds`;
   if (text && s.type !== 'strength') text += s.rx ? ' · Rx' : ' · Scaled';
   return text;
+}
+
+type TargetLike = { type: SetType; reps: number | null; weight: number | null };
+
+const range = (values: number[], fmt: (n: number) => string) => {
+  if (!values.length) return null;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  return min === max ? fmt(min) : `${fmt(min)}–${fmt(max)}`;
+};
+const kg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ','));
+
+/** "2 aquec. + 3 séries · 75–82,5 kg × 8–10" for a strength item's per-set targets. */
+export function describeTargets(sets: TargetLike[]): string {
+  const warmups = sets.filter((s) => s.type === 'warmup').length;
+  const work = sets.filter((s) => s.type !== 'warmup');
+  const count = [warmups ? `${warmups} aquec.` : null, `${work.length} ${work.length === 1 ? 'série' : 'séries'}`]
+    .filter(Boolean)
+    .join(' + ');
+  const w = range(work.flatMap((s) => (s.weight ? [s.weight] : [])), kg);
+  const r = range(work.flatMap((s) => (s.reps != null ? [s.reps] : [])), String);
+  const load = w && r ? `${w} kg × ${r}` : w ? `${w} kg` : r ? `${r} reps` : null;
+  return [count, load].filter(Boolean).join(' · ');
 }

@@ -4,9 +4,13 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Card, Chip, Divider, IconButton, List, Text } from 'react-native-paper';
 
+import { SetBadge } from '@/components/set-badge';
+
 import { db } from '@/db/client';
 import { sessions, sessionSets, type SessionSet } from '@/db/schema';
+import { useLocation, useMachineMap } from '@/features/places/queries';
 import { deleteSession } from '@/features/session/repo';
+import { countsTowardStats, setLabels } from '@/features/session/sets';
 import { describeItem, describeResult, describeWorkoutFormat } from '@/features/workouts/describe';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDate, formatDuration, formatWeight } from '@/lib/format';
@@ -15,6 +19,7 @@ import { WORKOUT_TYPE_LABEL } from '@/theme';
 export default function SessionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const exerciseMap = useExerciseMap();
+  const machineMap = useMachineMap();
   const { data: session } = useLiveQuery(db.query.sessions.findFirst({ where: eq(sessions.id, id) }), [id]);
   const { data: sets } = useLiveQuery(
     db
@@ -25,11 +30,16 @@ export default function SessionDetailScreen() {
     [id],
   );
 
+  const location = useLocation(session?.locationId);
   if (!session) return null;
 
   const groups = new Map<number, SessionSet[]>();
   for (const s of sets) groups.set(s.position, [...(groups.get(s.position) ?? []), s]);
-  const volume = sets.reduce((acc, s) => acc + (s.completedAt ? (s.weight ?? 0) * (s.reps ?? 0) : 0), 0);
+  const volume = sets.reduce(
+    (acc, s) => acc + (s.completedAt && countsTowardStats(s.type) ? (s.weight ?? 0) * (s.reps ?? 0) : 0),
+    0,
+  );
+  const warmups = sets.filter((s) => s.completedAt && s.type === 'warmup').length;
   const result = describeResult(session);
 
   const confirmDelete = () =>
@@ -56,7 +66,9 @@ export default function SessionDetailScreen() {
         {session.finishedAt && (
           <Chip icon="clock-outline">{formatDuration((session.finishedAt - session.startedAt) / 1000)}</Chip>
         )}
+        {location && <Chip icon="map-marker-outline">{location.name}</Chip>}
         {volume > 0 && <Chip icon="weight-kilogram">{formatWeight(volume)} de volume</Chip>}
+        {warmups > 0 && <Chip icon="fire">{warmups} aquecimento{warmups > 1 ? 's' : ''}</Chip>}
       </View>
 
       {result && (
@@ -71,10 +83,13 @@ export default function SessionDetailScreen() {
 
       {[...groups.values()].map((list) => {
         const ex = exerciseMap.get(list[0].exerciseId);
+        const machine = list[0].machineId ? machineMap.get(list[0].machineId) : undefined;
+        const labels = setLabels(list.map((s) => s.type));
         return (
           <Card key={list[0].id} mode="outlined">
             <Card.Title
               title={ex?.name ?? '—'}
+              subtitle={machine ? `⚙ ${machine.name}` : undefined}
               right={(p) => (
                 <IconButton
                   {...p}
@@ -87,14 +102,16 @@ export default function SessionDetailScreen() {
               <View key={s.id}>
                 {i > 0 && <Divider />}
                 <List.Item
-                  title={
-                    session.type === 'strength'
-                      ? `Série ${i + 1}: ${describeItem(s, 'amrap')}`
-                      : describeItem(s, session.type)
+                  title={session.type === 'strength' ? describeItem(s, 'amrap') || '—' : describeItem(s, session.type)}
+                  left={() =>
+                    session.type === 'strength' ? (
+                      <SetBadge type={s.type} label={labels[i]} />
+                    ) : (
+                      <List.Icon icon="check-circle" />
+                    )
                   }
-                  left={(p) => (
-                    <List.Icon {...p} icon={s.completedAt ? 'check-circle' : 'checkbox-blank-circle-outline'} />
-                  )}
+                  right={(p) => (s.completedAt ? <List.Icon {...p} icon="check" /> : null)}
+                  style={styles.setItem}
                 />
               </View>
             ))}
@@ -108,4 +125,5 @@ export default function SessionDetailScreen() {
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 12, paddingBottom: 48 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  setItem: { paddingLeft: 16 },
 });

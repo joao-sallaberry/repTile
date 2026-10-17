@@ -2,10 +2,11 @@
 
 Android app (React Native + Expo) to plan and run gym and CrossFit workouts.
 
-- **Strength**: sets, reps, weight and rest, with an automatic rest timer between sets.
+- **Strength** (Hevy-style set log): warm-up, normal, drop and to-failure sets, each with its own weight and reps; a "Previous" column with what you did last time; automatic rest timer between sets.
+- **Locations and machines**: a workout can belong to a gym or box; an exercise can be done on a specific machine. Machines are optional, can be shared by several locations, and keep their own load history and PRs.
 - **WODs**: AMRAP, EMOM and For Time, with a full-screen timer and lead-in countdown.
 - **Notifications**: alerts when a rest or WOD ends, even with the screen off or the app killed.
-- **History and PRs**: max weight, estimated 1RM, volume and a progression chart per exercise.
+- **History and PRs**: max weight, estimated 1RM, volume and a progression chart per exercise (filterable by machine). Warm-up sets don't count towards volume or PRs.
 
 Data is stored on the device (SQLite). The app UI is in Portuguese.
 
@@ -35,7 +36,7 @@ The development build loads JavaScript from your computer: the phone must stay c
 Other commands:
 
 ```sh
-npm test            # tests (timer, PRs)
+npm test            # tests (timer, PRs, set labels/pairing)
 npm run typecheck   # TypeScript
 npm run lint        # ESLint
 npm run db:generate # generate a migration after changing src/db/schema.ts
@@ -81,6 +82,7 @@ src/db/                  # Drizzle schema, migrations and seed exercises
 src/features/timer/      # timer engine, beeps and notifications
 src/features/session/    # running workouts (strength and WOD)
 src/features/stats/      # PR calculations
+src/features/places/     # locations, machines and the current location
 src/features/workouts/   # workout editing
 plugins/                 # config plugins (notification sounds)
 assets/icon/             # mascot art + script that renders the app icons

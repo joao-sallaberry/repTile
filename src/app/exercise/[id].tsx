@@ -3,13 +3,15 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { Card, IconButton, List, Text } from 'react-native-paper';
+import { Card, Chip, IconButton, List, Text } from 'react-native-paper';
 
 import { BarChart } from '@/components/bar-chart';
 import { MEASURE_LABEL } from '@/components/exercise-picker';
 import { db } from '@/db/client';
 import { exercises, sessionSets } from '@/db/schema';
-import { performedSets } from '@/features/session/repo';
+import { useMachineMap } from '@/features/places/queries';
+import { performedSets, type PerformedSetRow } from '@/features/session/repo';
+import { countsTowardStats } from '@/features/session/sets';
 import { computePRs, estimateOneRepMax, type PerformedSet } from '@/features/stats/prs';
 import { deleteExercise } from '@/features/workouts/repo';
 import { formatDate, formatWeight } from '@/lib/format';
@@ -21,11 +23,20 @@ export default function ExerciseDetailScreen() {
   const { data: exercise } = useLiveQuery(db.query.exercises.findFirst({ where: eq(exercises.id, id) }), [id]);
   // Reload whenever any set changes.
   const { updatedAt } = useLiveQuery(db.select({ id: sessionSets.id }).from(sessionSets).where(eq(sessionSets.exerciseId, id)), [id]);
-  const [sets, setSets] = useState<PerformedSet[]>([]);
+  const [allSets, setAllSets] = useState<PerformedSetRow[]>([]);
+  // undefined = every machine; null = without a machine
+  const [machineFilter, setMachineFilter] = useState<string | null | undefined>(undefined);
+  const machineMap = useMachineMap();
 
   useEffect(() => {
-    performedSets(id).then(setSets);
+    performedSets(id).then((rows) => setAllSets(rows.filter((r) => countsTowardStats(r.type))));
   }, [id, updatedAt]);
+
+  const machineIds = useMemo(() => [...new Set(allSets.map((s) => s.machineId))], [allSets]);
+  const sets: PerformedSet[] = useMemo(
+    () => (machineFilter === undefined ? allSets : allSets.filter((s) => s.machineId === machineFilter)),
+    [allSets, machineFilter],
+  );
 
   const prs = useMemo(() => computePRs(sets), [sets]);
 
@@ -68,6 +79,19 @@ export default function ExerciseDetailScreen() {
       <Text variant="bodyMedium">
         {exercise.category} · {MEASURE_LABEL[exercise.measure]}
       </Text>
+
+      {machineIds.length > 1 || (machineIds.length === 1 && machineIds[0] != null) ? (
+        <View style={styles.chips}>
+          <Chip selected={machineFilter === undefined} onPress={() => setMachineFilter(undefined)}>
+            Todas
+          </Chip>
+          {machineIds.map((mid) => (
+            <Chip key={mid ?? 'none'} icon={mid ? 'cog-outline' : undefined} selected={machineFilter === mid} onPress={() => setMachineFilter(mid)}>
+              {mid ? (machineMap.get(mid)?.name ?? 'Máquina') : 'Sem máquina'}
+            </Chip>
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.grid}>
         <Stat label="Maior carga" value={prs.maxWeight ? `${formatWeight(prs.maxWeight.value)} × ${prs.maxWeight.reps}` : '—'} sub={prs.maxWeight && formatDate(prs.maxWeight.at)} />
@@ -128,6 +152,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 12, paddingBottom: 48 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stat: { flexBasis: '48%', flexGrow: 1 },
   empty: { textAlign: 'center', padding: 24, opacity: 0.7 },
 });

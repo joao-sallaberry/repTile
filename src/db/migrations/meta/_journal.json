@@ -8,6 +8,13 @@
       "when": 1791219420909,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1792200115255,
+      "tag": "0001_locations_machines_set_types",
+      "breakpoints": true
     }
   ]
 }

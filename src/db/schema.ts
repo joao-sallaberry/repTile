@@ -22,6 +22,50 @@ export type Measure = (typeof MEASURES)[number];
 export const WORKOUT_TYPES = ['strength', 'amrap', 'emom', 'for_time'] as const;
 export type WorkoutType = (typeof WORKOUT_TYPES)[number];
 
+/** Set kinds, as in Hevy: warm-up sets don't count towards volume or PRs. */
+export const SET_TYPES = ['warmup', 'normal', 'drop', 'failure'] as const;
+export type SetType = (typeof SET_TYPES)[number];
+
+export const LOCATION_KINDS = ['gym', 'box'] as const;
+export type LocationKind = (typeof LOCATION_KINDS)[number];
+
+/** A place where the user trains (a gym or a CrossFit box). */
+export const locations = sqliteTable('locations', {
+  ...syncColumns,
+  name: text('name').notNull(),
+  kind: text('kind', { enum: LOCATION_KINDS }).notNull().default('gym'),
+});
+
+/**
+ * A specific machine (or machine model). Machines are optional and independent of
+ * locations: `location_machines` links them N:N, `machine_exercises` says which
+ * exercises can be done on each one. Loads and PRs are tracked per machine.
+ */
+export const machines = sqliteTable('machines', {
+  ...syncColumns,
+  name: text('name').notNull(),
+});
+
+export const locationMachines = sqliteTable(
+  'location_machines',
+  {
+    ...syncColumns,
+    locationId: text('location_id').notNull(),
+    machineId: text('machine_id').notNull(),
+  },
+  (t) => [index('location_machines_location_idx').on(t.locationId), index('location_machines_machine_idx').on(t.machineId)],
+);
+
+export const machineExercises = sqliteTable(
+  'machine_exercises',
+  {
+    ...syncColumns,
+    machineId: text('machine_id').notNull(),
+    exerciseId: text('exercise_id').notNull(),
+  },
+  (t) => [index('machine_exercises_machine_idx').on(t.machineId), index('machine_exercises_exercise_idx').on(t.exerciseId)],
+);
+
 export const exercises = sqliteTable('exercises', {
   ...syncColumns,
   name: text('name').notNull(),
@@ -43,6 +87,7 @@ export const workouts = sqliteTable('workouts', {
   rounds: integer('rounds'),
   /** For Time: time cap (optional). */
   timeCapSec: integer('time_cap_sec'),
+  locationId: text('location_id'),
 });
 
 export const workoutItems = sqliteTable(
@@ -52,8 +97,9 @@ export const workoutItems = sqliteTable(
     workoutId: text('workout_id').notNull(),
     exerciseId: text('exercise_id').notNull(),
     position: integer('position').notNull(),
-    /** Strength: number of sets. */
+    /** Strength: number of sets (mirrors the rows in `workout_item_sets`). */
     sets: integer('sets'),
+    machineId: text('machine_id'),
     reps: integer('reps'),
     weight: real('weight'),
     durationSec: integer('duration_sec'),
@@ -63,6 +109,23 @@ export const workoutItems = sqliteTable(
     notes: text('notes'),
   },
   (t) => [index('workout_items_workout_idx').on(t.workoutId)],
+);
+
+/** Strength: the planned target of each set of a workout item (weight/reps may vary per set). */
+export const workoutItemSets = sqliteTable(
+  'workout_item_sets',
+  {
+    ...syncColumns,
+    workoutItemId: text('workout_item_id').notNull(),
+    position: integer('position').notNull(),
+    type: text('type', { enum: SET_TYPES }).notNull().default('normal'),
+    reps: integer('reps'),
+    weight: real('weight'),
+    durationSec: integer('duration_sec'),
+    distanceM: real('distance_m'),
+    calories: integer('calories'),
+  },
+  (t) => [index('workout_item_sets_item_idx').on(t.workoutItemId)],
 );
 
 export const sessions = sqliteTable(
@@ -84,6 +147,7 @@ export const sessions = sqliteTable(
     resultReps: integer('result_reps'),
     rx: integer('rx', { mode: 'boolean' }).notNull().default(true),
     notes: text('notes'),
+    locationId: text('location_id'),
   },
   (t) => [index('sessions_started_idx').on(t.startedAt)],
 );
@@ -97,6 +161,8 @@ export const sessionSets = sqliteTable(
     /** Exercise order within the session. */
     position: integer('position').notNull(),
     setIndex: integer('set_index').notNull(),
+    type: text('type', { enum: SET_TYPES }).notNull().default('normal'),
+    machineId: text('machine_id'),
     reps: integer('reps'),
     weight: real('weight'),
     durationSec: integer('duration_sec'),
@@ -115,9 +181,14 @@ export const workoutsRelations = relations(workouts, ({ many }) => ({
   items: many(workoutItems),
 }));
 
-export const workoutItemsRelations = relations(workoutItems, ({ one }) => ({
+export const workoutItemsRelations = relations(workoutItems, ({ one, many }) => ({
   workout: one(workouts, { fields: [workoutItems.workoutId], references: [workouts.id] }),
   exercise: one(exercises, { fields: [workoutItems.exerciseId], references: [exercises.id] }),
+  targetSets: many(workoutItemSets),
+}));
+
+export const workoutItemSetsRelations = relations(workoutItemSets, ({ one }) => ({
+  item: one(workoutItems, { fields: [workoutItemSets.workoutItemId], references: [workoutItems.id] }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ many }) => ({
@@ -134,6 +205,20 @@ export type Workout = typeof workouts.$inferSelect;
 export type WorkoutItem = typeof workoutItems.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type SessionSet = typeof sessionSets.$inferSelect;
+export type WorkoutItemSet = typeof workoutItemSets.$inferSelect;
+export type Location = typeof locations.$inferSelect;
+export type Machine = typeof machines.$inferSelect;
 
 /** Tables synced with Supabase, in an order that is safe for upserts. */
-export const SYNC_TABLES = { exercises, workouts, workoutItems, sessions, sessionSets } as const;
+export const SYNC_TABLES = {
+  exercises,
+  locations,
+  machines,
+  locationMachines,
+  machineExercises,
+  workouts,
+  workoutItems,
+  workoutItemSets,
+  sessions,
+  sessionSets,
+} as const;

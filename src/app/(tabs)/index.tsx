@@ -7,6 +7,8 @@ import { Appbar, Button, Card, Divider, List, Text, useTheme } from 'react-nativ
 
 import { db } from '@/db/client';
 import { sessions, workouts } from '@/db/schema';
+import { useCurrentLocation } from '@/features/places/current';
+import { LOCATION_KIND_LABEL, useLocation } from '@/features/places/queries';
 import { TimerPermissionsCard } from '@/features/timer/permissions-card';
 import { describeResult } from '@/features/workouts/describe';
 import { formatDate } from '@/lib/format';
@@ -14,6 +16,7 @@ import { WORKOUT_TYPE_ICON, WORKOUT_TYPE_LABEL } from '@/theme';
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const currentLocation = useLocation(useCurrentLocation((s) => s.id));
   const [weekAgo] = useState(() => Date.now() - 7 * 24 * 3600 * 1000);
   const { data: active } = useLiveQuery(
     db
@@ -63,6 +66,16 @@ export default function HomeScreen() {
         )}
 
         <TimerPermissionsCard />
+
+        <Card mode="outlined">
+          <List.Item
+            title={currentLocation?.name ?? 'Onde você treina?'}
+            description={currentLocation ? `Local atual · ${LOCATION_KIND_LABEL[currentLocation.kind]}` : 'Cadastre sua academia ou box'}
+            left={(p) => <List.Icon {...p} icon="map-marker-outline" color={theme.colors.primary} />}
+            right={(p) => <List.Icon {...p} icon="chevron-right" />}
+            onPress={() => router.push('/locations')}
+          />
+        </Card>
 
         <Text variant="titleMedium">Começar um treino</Text>
         {myWorkouts.length === 0 ? (
