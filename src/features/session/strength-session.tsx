@@ -8,6 +8,7 @@ import { DurationField } from '@/components/duration-field';
 import { ExercisePicker } from '@/components/exercise-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
+import { MachineThumb } from '@/components/machine-thumb';
 import { NumberField } from '@/components/number-field';
 import { SetBadge } from '@/components/set-badge';
 import { SetTypeDialog } from '@/components/set-type-dialog';
@@ -212,7 +213,11 @@ function ExerciseCard({
             accessibilityLabel={machine ? `Máquina: ${machine.name}. Toque para trocar` : 'Associar uma máquina'}
             style={styles.machineChip}>
             <View style={styles.row}>
-              <IconButton icon="cog-outline" size={14} style={styles.noMargin} />
+              {machine?.photo ? (
+                <MachineThumb photo={machine.photo} size={28} style={styles.machineThumb} />
+              ) : (
+                <IconButton icon="cog-outline" size={14} style={styles.noMargin} />
+              )}
               <Text variant="bodySmall" style={styles.muted}>
                 {machine?.name ?? 'Sem máquina · escolher'}
               </Text>
@@ -398,6 +403,7 @@ const styles = StyleSheet.create({
   locationInner: { flexDirection: 'row', alignItems: 'center', paddingRight: 10 },
   content: { padding: 12, gap: 12, paddingBottom: 32 },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 14, paddingTop: 12, gap: 8 },
+  machineThumb: { margin: 4, marginRight: 6 },
   machineChip: { alignSelf: 'flex-start', borderRadius: 8, minHeight: 32, justifyContent: 'center', marginLeft: -6 },
   restChip: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden', marginTop: 2 },
   tableHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, gap: 6 },

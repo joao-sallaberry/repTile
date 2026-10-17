@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Dialog, IconButton, List, Portal, SegmentedButtons, Switch, Text, TextInput } from 'react-native-paper';
 
+import { MachineThumb } from '@/components/machine-thumb';
 import { db } from '@/db/client';
 import { locationMachines, machines, type Exercise, type Location, type LocationKind } from '@/db/schema';
 import { useCurrentLocation } from '@/features/places/current';
@@ -120,7 +121,7 @@ export default function LocationDetailScreen() {
               .filter(Boolean)
               .join('\n')}
             descriptionNumberOfLines={3}
-            left={(p) => <List.Icon {...p} icon="cog-outline" />}
+            left={(p) => <MachineThumb photo={machine.photo} style={p.style} />}
             right={(p) => <List.Icon {...p} icon="chevron-right" />}
             onPress={() => router.push({ pathname: '/machines/[id]', params: { id: machine.id } })}
           />

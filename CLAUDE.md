@@ -28,7 +28,7 @@ Run `npm run typecheck`, `npm run lint` and `npm test` before calling a task don
 
 ## Architecture
 
-- **Routes** in `src/app/`: `(tabs)/` (index, workouts, history, exercises) uses `NativeTabs`; stack screens `workout/[id]`, `workout/edit`, `session/[id]`, `history/[id]`, `exercise/[id]`, `locations/index`, `locations/new`, `locations/[id]`, `machines/[id]`. Shared pickers live in `src/components/` (`location-picker`, `machine-picker`, `set-type-dialog`, `set-badge`).
+- **Routes** in `src/app/`: `(tabs)/` (index, workouts, history, exercises) uses `NativeTabs`; stack screens `workout/[id]`, `workout/edit`, `session/[id]`, `history/[id]`, `exercise/[id]`, `locations/index`, `locations/new`, `locations/[id]`, `machines/[id]`. Shared pickers live in `src/components/` (`location-picker`, `machine-picker`, `machine-thumb`, `set-type-dialog`, `set-badge`).
 - **Data**: local-first SQLite via Drizzle (`src/db/`). Screens read with `useLiveQuery`; writes go through repos (`src/features/workouts/repo.ts`, `src/features/session/repo.ts`, `src/features/places/repo.ts`).
 - **Timer** (`src/features/timer/`):
   - `engine.ts` — pure, timestamp-based (`startedAt`, `pausedTotalMs`, `extraSec`); never accumulate ticks. Fully unit-tested.
@@ -38,6 +38,7 @@ Run `npm run typecheck`, `npm run lint` and `npm test` before calling a task don
 - **Sessions**: starting a workout snapshots its config into `sessions` and creates `session_sets`. Strength sets are completed one by one; WOD sets are marked complete when the session finishes. PR stats only count `strength` sessions.
 - **Set types** (`SET_TYPES`: warmup/normal/drop/failure): strength routines store one target row per set in `workout_item_sets` (the `workout_items.sets` column only mirrors the count; WOD items keep reps/weight on the item). `src/features/session/sets.ts` has the pure helpers: `setLabels` (W, 1, 2, D, F — only normal sets are numbered), `pairPrevious` (the "Anterior" column pairs sets by type + order) and `countsTowardStats` (warm-ups never count for volume/PRs). New warm-ups are inserted after the existing warm-ups, before working sets.
 - **Locations & machines**: `locations` (gym/box), `machines`, `location_machines` (N:N) and `machine_exercises` (N:N). Machines are optional: picking/creating one in a session links it to the exercise and the session's location automatically. `workouts.location_id` is the routine's fixed location (optional); `sessions.location_id` is where it was done (falls back to the per-device current location, `src/features/places/current.ts`). `workout_items.machine_id` / `session_sets.machine_id` record the machine. "Anterior", pre-filled loads and PR checks are per exercise **and machine** (`performedSets(exerciseId, { machineId })`: `undefined` = any, `null` = no machine); a machine's history is shared across all its locations.
+- **Machine photos** (`src/features/places/photos.ts`): `expo-image-picker` (camera or gallery) → `expo-image-manipulator` downscales to 800 px on the longest side, JPEG 0.6 (~50–100 KB) → moved into `<document>/machine-photos/`. `machines.photo` stores only the file name (resolve with `machinePhotoUri`); file names carry a timestamp so `expo-image` doesn't show a cached old photo, and the previous file is deleted on replace/remove. Photos are local only — they won't sync until uploaded to Supabase Storage.
 - Migration `0001` expands the old "N sets of R reps" strength items into `workout_item_sets` rows (hand-written SQL appended after the generated DDL). Hand-edit migrations only by appending, and test them in SQLite (e.g. Python `sqlite3`) before shipping.
 
 ## Conventions
@@ -59,6 +60,6 @@ Run `npm run typecheck`, `npm run lint` and `npm test` before calling a task don
 
 ## Roadmap
 
-- Supabase auth + sync (last-write-wins on `updatedAt`, push `dirty` rows) — needs the user's Supabase project.
+- Supabase auth + sync (last-write-wins on `updatedAt`, push `dirty` rows) — needs the user's Supabase project. Machine photos need Supabase Storage (upload the file, sync the name/path).
 - UI polish: card title padding, tab labels only shown on the selected tab.
 - Not built yet from the design: per-exercise notes in a session, superset links, "update routine with these values" on the summary, a dedicated "workout finished" summary screen (history detail is used instead), and rep ranges like "12–15" in routine targets (targets are plain numbers).

@@ -63,7 +63,15 @@
         }
       ],
       "./plugins/with-raw-sounds",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "O RepTile usa a câmera para fotografar as máquinas da academia.",
+          "photosPermission": "O RepTile usa suas fotos para ilustrar as máquinas da academia.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

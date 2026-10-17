@@ -1,13 +1,15 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, Checkbox, Chip, IconButton, List, Text, TextInput } from 'react-native-paper';
+import { ActivityIndicator, Button, Card, Checkbox, Chip, Icon, IconButton, List, Text, TextInput } from 'react-native-paper';
 
 import { ExercisePicker } from '@/components/exercise-picker';
 import { db } from '@/db/client';
 import { locationMachines, machineExercises, machines } from '@/db/schema';
+import { machinePhotoUri, pickPhoto, removeMachinePhoto, saveMachinePhoto, type PhotoSource } from '@/features/places/photos';
 import { LOCATION_KIND_LABEL, useLocations } from '@/features/places/queries';
 import {
   deleteMachine,
@@ -30,6 +32,7 @@ export default function MachineDetailScreen() {
   const [name, setName] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [records, setRecords] = useState<Map<string, string>>(new Map());
+  const [savingPhoto, setSavingPhoto] = useState(false);
 
   const { data: machine } = useLiveQuery(db.query.machines.findFirst({ where: eq(machines.id, id) }), [id]);
   const { data: exLinks } = useLiveQuery(
@@ -60,6 +63,32 @@ export default function MachineDetailScreen() {
   if (!machine) return null;
   const linkedLocations = new Set(locLinks.map((l) => l.locationId));
 
+  const photoUri = machinePhotoUri(machine.photo);
+
+  const takePhoto = async (source: PhotoSource) => {
+    try {
+      const asset = await pickPhoto(source);
+      if (!asset) return;
+      setSavingPhoto(true);
+      await saveMachinePhoto(id, asset);
+    } catch (e) {
+      Alert.alert(
+        'Não foi possível salvar a foto',
+        e instanceof Error && e.message === 'permission'
+          ? 'Permita o acesso à câmera nas configurações do Android.'
+          : String(e),
+      );
+    } finally {
+      setSavingPhoto(false);
+    }
+  };
+
+  const confirmRemovePhoto = () =>
+    Alert.alert('Remover foto?', undefined, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Remover', style: 'destructive', onPress: () => removeMachinePhoto(id) },
+    ]);
+
   const confirmDelete = () =>
     Alert.alert('Excluir máquina?', 'As séries já registradas continuam no histórico.', [
       { text: 'Cancelar', style: 'cancel' },
@@ -78,6 +107,35 @@ export default function MachineDetailScreen() {
       <Stack.Screen
         options={{ title: machine.name, headerRight: () => <IconButton icon="delete-outline" onPress={confirmDelete} /> }}
       />
+      <View style={styles.photo}>
+        {photoUri ? (
+          <Image source={{ uri: photoUri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+        ) : (
+          <View style={styles.photoEmpty}>
+            <Icon source="camera-outline" size={36} />
+            <Text variant="bodySmall" style={styles.muted}>
+              Uma foto ajuda a reconhecer a máquina na academia
+            </Text>
+          </View>
+        )}
+        {savingPhoto && (
+          <View style={styles.photoBusy}>
+            <ActivityIndicator />
+          </View>
+        )}
+      </View>
+      <View style={styles.photoActions}>
+        <Button mode="contained-tonal" icon="camera" disabled={savingPhoto} onPress={() => takePhoto('camera')}>
+          {photoUri ? 'Nova foto' : 'Tirar foto'}
+        </Button>
+        <Button mode="outlined" icon="image-outline" disabled={savingPhoto} onPress={() => takePhoto('library')}>
+          Galeria
+        </Button>
+        {photoUri && (
+          <IconButton icon="delete-outline" accessibilityLabel="Remover foto" disabled={savingPhoto} onPress={confirmRemovePhoto} />
+        )}
+      </View>
+
       <TextInput
         mode="outlined"
         label="Nome"
@@ -153,6 +211,10 @@ export default function MachineDetailScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 12, paddingBottom: 48 },
+  photo: { aspectRatio: 4 / 3, borderRadius: 16, overflow: 'hidden', backgroundColor: '#1F2229' },
+  photoEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
+  photoBusy: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
+  photoActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   muted: { opacity: 0.7 },
   recordItem: { paddingRight: 16 },

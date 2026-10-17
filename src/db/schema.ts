@@ -44,6 +44,8 @@ export const locations = sqliteTable('locations', {
 export const machines = sqliteTable('machines', {
   ...syncColumns,
   name: text('name').notNull(),
+  /** File name of a low-res JPEG in the app's document dir (see features/places/photos.ts). Local only for now. */
+  photo: text('photo'),
 });
 
 export const locationMachines = sqliteTable(

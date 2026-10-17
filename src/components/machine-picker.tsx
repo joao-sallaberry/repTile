@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { Button, Dialog, Divider, List, Portal, Text, TextInput } from 'react-native-paper';
 
+import { MachineThumb } from '@/components/machine-thumb';
 import { createMachine, linkMachineToLocation, machinesForExercise, type MachineOption } from '@/features/places/repo';
 
 type Props = {
@@ -53,6 +54,7 @@ export function MachinePicker({
       description={
         showLocations ? (o.locations.length ? o.locations.map((l) => l.name).join(', ') : 'Sem local') : undefined
       }
+      left={(p) => <MachineThumb photo={o.machine.photo} style={p.style} />}
       right={(p) => (o.machine.id === currentMachineId ? <List.Icon {...p} icon="check" /> : null)}
       onPress={() => pick(o.machine.id)}
     />
