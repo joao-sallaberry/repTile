@@ -13,6 +13,10 @@ After any change that affects them, update **both** files in the same task — d
 
 Examples that require an update: new feature or screen, new npm script, new dependency with native code, changed build/release steps, new folder under `src/`, schema change that alters the data model description.
 
+## Design decisions (ADRs)
+
+`docs/decisions/` holds one Architecture Decision Record per significant decision (see its `README.md` for the rules and index). When a task involves a choice that is hard to reverse, changes the data model, adds a native dependency, or picks one option over a reasonable alternative, write a new ADR from `template.md` in the same task and add it to the index. Don't rewrite accepted ADRs: supersede them with a new one. Read the relevant ADRs before changing an area they cover.
+
 ## Commands
 
 ```sh

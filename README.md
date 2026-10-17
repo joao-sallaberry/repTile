@@ -86,4 +86,5 @@ src/features/places/     # locations, machines (and their photos) and the curren
 src/features/workouts/   # workout editing
 plugins/                 # config plugins (notification sounds)
 assets/icon/             # mascot art + script that renders the app icons
+docs/decisions/          # design decisions (ADRs)
 ```
