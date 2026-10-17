@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PaperProvider, Text } from 'react-native-paper';
 
 import { db } from '@/db/client';
@@ -26,6 +27,8 @@ function useDatabaseReady() {
 
 export default function RootLayout() {
   const { ready, error } = useDatabaseReady();
+  // Android draws edge-to-edge: keep stack screens' content (footers, FABs) above the system navigation bar.
+  const { bottom } = useSafeAreaInsets();
   useTimerCuePlayer();
 
   useEffect(() => {
@@ -43,8 +46,8 @@ export default function RootLayout() {
               <Text>{error.message}</Text>
             </View>
           ) : ready ? (
-            <Stack screenOptions={{ headerShadowVisible: false }}>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack screenOptions={{ headerShadowVisible: false, contentStyle: { paddingBottom: bottom } }}>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false, contentStyle: { paddingBottom: 0 } }} />
               <Stack.Screen name="workout/[id]" options={{ title: 'Treino' }} />
               <Stack.Screen name="workout/edit" options={{ title: 'Editar treino', presentation: 'modal' }} />
               <Stack.Screen name="session/[id]" options={{ title: 'Treino em andamento' }} />
@@ -55,7 +58,10 @@ export default function RootLayout() {
               <Stack.Screen name="locations/[id]" options={{ title: 'Local' }} />
               <Stack.Screen name="machines/[id]" options={{ title: 'Máquina' }} />
               <Stack.Screen name="settings" options={{ title: 'Ajustes' }} />
-              <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
+              <Stack.Screen
+                name="welcome"
+                options={{ headerShown: false, gestureEnabled: false, contentStyle: { paddingBottom: 0 } }}
+              />
             </Stack>
           ) : null}
         </ThemeProvider>
