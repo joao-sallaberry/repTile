@@ -6,6 +6,7 @@ import { Appbar, List, Text } from 'react-native-paper';
 
 import { db } from '@/db/client';
 import { sessions, type Session } from '@/db/schema';
+import { useLocations } from '@/features/places/queries';
 import { describeResult } from '@/features/workouts/describe';
 import { formatDate, formatDuration } from '@/lib/format';
 import { WORKOUT_TYPE_ICON, WORKOUT_TYPE_LABEL } from '@/theme';
@@ -31,6 +32,8 @@ export default function HistoryScreen() {
       .where(and(isNull(sessions.deletedAt), isNotNull(sessions.finishedAt)))
       .orderBy(desc(sessions.startedAt)),
   );
+  const locations = useLocations();
+  const locationName = new Map(locations.map((l) => [l.id, l.name]));
 
   return (
     <View style={styles.flex}>
@@ -52,7 +55,9 @@ export default function HistoryScreen() {
               item.finishedAt ? formatDuration((item.finishedAt - item.startedAt) / 1000) : null,
             ]
               .filter(Boolean)
-              .join(' · ')}
+              .join(' · ')
+              .concat(`\n${(item.locationId && locationName.get(item.locationId)) || 'Sem local'}`)}
+            descriptionNumberOfLines={2}
             left={(p) => <List.Icon {...p} icon={WORKOUT_TYPE_ICON[item.type]} />}
             onPress={() => router.push({ pathname: '/history/[id]', params: { id: item.id } })}
           />

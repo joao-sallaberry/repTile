@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { Button, Card, Text, useTheme } from 'react-native-paper';
+import { Button, Card, Icon, Text, useTheme } from 'react-native-paper';
 
 import { useLocations } from '@/features/places/queries';
 import { describeResult } from '@/features/workouts/describe';
@@ -48,11 +48,12 @@ export function RecentSessions({ limit = 5 }: { limit?: number }) {
                 <Text variant="bodySmall" style={styles.muted}>
                   {meta.filter(Boolean).join(' · ')}
                 </Text>
-                {place && (
-                  <Text variant="bodySmall" style={styles.muted}>
-                    {place}
+                <View style={styles.place}>
+                  <Icon source="map-marker-outline" size={14} color={theme.colors.onSurfaceVariant} />
+                  <Text variant="bodySmall" style={styles.muted} numberOfLines={1}>
+                    {place ?? 'Sem local'}
                   </Text>
-                )}
+                </View>
               </View>
               {s.prs > 0 && (
                 <Text
@@ -76,5 +77,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   date: { width: 44, alignItems: 'center' },
   muted: { opacity: 0.7 },
+  place: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: 'hidden' },
 });
