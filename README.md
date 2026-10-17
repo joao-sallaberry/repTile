@@ -2,7 +2,7 @@
 
 Android app (React Native + Expo) to plan and run gym and CrossFit workouts.
 
-- **Home**: this week's trained days (Sunday to Saturday) against an optional weekly goal, the next routine in your rotation, a "Treino livre" (empty workout, can be saved as a routine at the end), your routines with one-tap start, recent PRs and the last workouts. First use offers ready-made templates (ABC, Full body, Fran, Cindy).
+- **Home**: this week's trained days (Monday to Sunday) against an optional weekly goal, the next routine in your rotation, a "Treino livre" (empty workout, can be saved as a routine at the end), your routines with one-tap start, recent PRs and the last workouts. First use offers ready-made templates (ABC, Full body, Fran, Cindy).
 - **Strength** (Hevy-style set log): warm-up, normal, drop and to-failure sets, each with its own weight and reps; a "Previous" column with what you did last time; automatic rest timer between sets. Start and end times can be adjusted when finishing.
 - **Locations and machines**: a workout can belong to a gym or box; an exercise can be done on a specific machine. Machines are optional, can be shared by several locations, and keep their own load history and PRs. Each machine can have a low-res photo (camera or gallery) to recognise it at the gym.
 - **WODs**: AMRAP, EMOM and For Time, with a full-screen timer and lead-in countdown.

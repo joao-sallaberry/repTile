@@ -23,7 +23,7 @@ export default function SettingsScreen() {
         Treino
       </Text>
       <Text variant="bodySmall" style={styles.muted}>
-        Meta semanal: quantos treinos por semana (de domingo a sábado) aparecem na tela inicial.
+        Meta semanal: quantos treinos por semana (de segunda a domingo) aparecem na tela inicial.
       </Text>
       <View style={styles.chips}>
         {GOALS.map((g) => (

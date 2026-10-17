@@ -5,7 +5,7 @@ import { useWeeklyGoal } from './goal';
 import { useWeekSummary } from './queries';
 import { formatMinutes, formatVolume, weekDays } from './stats';
 
-/** "Esta semana": trained days (Sunday first), goal, time, volume and new PRs. */
+/** "Esta semana": trained days (Monday first), goal, time, volume and new PRs. */
 export function WeekCard({ now, compact = false }: { now: number; compact?: boolean }) {
   const theme = useTheme();
   const goal = useWeeklyGoal((s) => s.goal);

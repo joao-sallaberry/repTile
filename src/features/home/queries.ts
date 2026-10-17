@@ -9,7 +9,7 @@ import { summarizeSets, weekBounds } from './stats';
 
 const finished = and(isNotNull(sessions.finishedAt), isNull(sessions.deletedAt));
 
-/** Sessions and completed sets of the current week (Sunday-based). */
+/** Sessions and completed sets of the current week (Monday-based). */
 export function useWeekSummary(now: number) {
   const { start } = weekBounds(now);
   const { data: weekSessions } = useLiveQuery(

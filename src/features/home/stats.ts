@@ -2,7 +2,8 @@ import type { SetType } from '@/db/schema';
 import { countsTowardStats } from '@/features/session/sets';
 
 const DAY_MS = 24 * 3600 * 1000;
-const WEEKDAY_LETTERS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+/** Monday first. */
+const WEEKDAY_LETTERS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 
 function startOfDay(ms: number): number {
   const d = new Date(ms);
@@ -10,10 +11,10 @@ function startOfDay(ms: number): number {
   return d.getTime();
 }
 
-/** The current week in local time, Sunday 00:00 to next Sunday 00:00. */
+/** The current week in local time, Monday 00:00 to next Monday 00:00. */
 export function weekBounds(now: number): { start: number; end: number } {
   const d = new Date(startOfDay(now));
-  d.setDate(d.getDate() - d.getDay());
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   const start = d.getTime();
   d.setDate(d.getDate() + 7);
   return { start, end: d.getTime() };
@@ -21,7 +22,7 @@ export function weekBounds(now: number): { start: number; end: number } {
 
 export type WeekDay = { label: string; dayOfMonth: number; state: 'done' | 'today' | 'empty' };
 
-/** Sunday..Saturday of the current week; a day is `done` if any session started on it. */
+/** Monday..Sunday of the current week; a day is `done` if any session started on it. */
 export function weekDays(sessionStarts: number[], now: number): WeekDay[] {
   const trained = new Set(sessionStarts.map(startOfDay));
   const today = startOfDay(now);

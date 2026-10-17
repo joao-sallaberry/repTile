@@ -13,27 +13,28 @@ const now = new Date(2026, 9, 17, 15, 0).getTime();
 const at = (day: number, hour = 10) => new Date(2026, 9, day, hour).getTime();
 
 describe('weekBounds', () => {
-  it('starts on Sunday at midnight', () => {
+  it('starts on Monday at midnight', () => {
     const { start, end } = weekBounds(now);
-    expect(new Date(start)).toEqual(new Date(2026, 9, 11));
-    expect(new Date(end)).toEqual(new Date(2026, 9, 18));
+    expect(new Date(start)).toEqual(new Date(2026, 9, 12));
+    expect(new Date(end)).toEqual(new Date(2026, 9, 19));
   });
 
-  it('a Sunday starts its own week', () => {
-    expect(new Date(weekBounds(at(18)).start)).toEqual(new Date(2026, 9, 18));
+  it('a Sunday ends the week; a Monday starts the next one', () => {
+    expect(new Date(weekBounds(at(18)).start)).toEqual(new Date(2026, 9, 12));
+    expect(new Date(weekBounds(at(19)).start)).toEqual(new Date(2026, 9, 19));
   });
 });
 
 describe('weekDays', () => {
   it('marks trained days and today', () => {
     const days = weekDays([at(12), at(14, 7), at(14, 19), at(15)], now);
-    expect(days.map((d) => d.label).join('')).toBe('DSTQQSS');
-    expect(days.map((d) => d.dayOfMonth)).toEqual([11, 12, 13, 14, 15, 16, 17]);
-    expect(days.map((d) => d.state)).toEqual(['empty', 'done', 'empty', 'done', 'done', 'empty', 'today']);
+    expect(days.map((d) => d.label).join('')).toBe('STQQSSD');
+    expect(days.map((d) => d.dayOfMonth)).toEqual([12, 13, 14, 15, 16, 17, 18]);
+    expect(days.map((d) => d.state)).toEqual(['done', 'empty', 'done', 'done', 'empty', 'today', 'empty']);
   });
 
   it('today counts as done once trained', () => {
-    expect(weekDays([at(17, 8)], now)[6].state).toBe('done');
+    expect(weekDays([at(17, 8)], now)[5].state).toBe('done');
   });
 });
 
