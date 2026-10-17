@@ -301,6 +301,14 @@ export async function addExerciseToSession(sessionId: string, exerciseId: string
   });
 }
 
+/** Removes an exercise (all its sets) from an in-progress session. */
+export async function removeExercise(sessionId: string, position: number) {
+  await db
+    .update(sessionSets)
+    .set({ deletedAt: Date.now(), ...touched() })
+    .where(and(eq(sessionSets.sessionId, sessionId), eq(sessionSets.position, position), isNull(sessionSets.deletedAt)));
+}
+
 export async function removeSet(id: string) {
   await db.update(sessionSets).set({ deletedAt: Date.now(), ...touched() }).where(eq(sessionSets.id, id));
 }

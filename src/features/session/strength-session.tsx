@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, IconButton, Snackbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
 import { DurationField } from '@/components/duration-field';
@@ -27,6 +27,7 @@ import {
   addSet,
   completeSet,
   previousSessionSets,
+  removeExercise,
   removeSet,
   setExerciseMachine,
   setSessionLocation,
@@ -210,6 +211,26 @@ function ExerciseCard({
   const paired = pairPrevious(sets, previous);
   const typeIndex = typeFor ? sets.findIndex((s) => s.id === typeFor.id) : -1;
 
+  const confirmRemove = () => {
+    const done = sets.filter((s) => s.completedAt).length;
+    Alert.alert(
+      `Remover ${exercise?.name ?? 'exercício'}?`,
+      done === 1
+        ? 'A série já feita dele neste treino também será apagada. A rotina não muda.'
+        : done > 1
+          ? `As ${done} séries já feitas dele neste treino também serão apagadas. A rotina não muda.`
+          : 'Ele sai só deste treino; a rotina não muda.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: () => removeExercise(session.id, position),
+        },
+      ],
+    );
+  };
+
   return (
     <Card mode="contained">
       <View style={styles.cardHeader}>
@@ -239,6 +260,13 @@ function ExerciseCard({
             ⏱ {formatDuration(restSec)}
           </Text>
         ) : null}
+        <IconButton
+          icon="delete-outline"
+          size={20}
+          accessibilityLabel={`Remover ${exercise?.name ?? 'exercício'} do treino`}
+          onPress={confirmRemove}
+          style={styles.noMargin}
+        />
       </View>
 
       <View style={styles.tableHeader}>
