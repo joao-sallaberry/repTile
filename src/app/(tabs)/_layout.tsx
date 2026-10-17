@@ -1,8 +1,11 @@
+import { Redirect } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
+import { hasSeenWelcome } from '@/lib/welcome';
 import { theme } from '@/theme';
 
 export default function TabsLayout() {
+  if (!hasSeenWelcome()) return <Redirect href="/welcome" />;
   return (
     <NativeTabs
       backgroundColor={theme.colors.elevation.level2}

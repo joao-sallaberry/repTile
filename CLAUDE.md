@@ -32,7 +32,7 @@ Run `npm run typecheck`, `npm run lint` and `npm test` before calling a task don
 
 ## Architecture
 
-- **Routes** in `src/app/`: `(tabs)/` (index, workouts, history, exercises) uses `NativeTabs`; stack screens `workout/[id]`, `workout/edit`, `session/[id]`, `history/[id]`, `exercise/[id]`, `locations/index`, `locations/new`, `locations/[id]`, `machines/[id]`. Shared pickers live in `src/components/` (`location-picker`, `machine-picker`, `machine-thumb`, `set-type-dialog`, `set-badge`).
+- **Routes** in `src/app/`: `(tabs)/` (index, workouts, history, exercises) uses `NativeTabs`; stack screens `workout/[id]`, `workout/edit`, `session/[id]`, `history/[id]`, `exercise/[id]`, `locations/index`, `locations/new`, `locations/[id]`, `machines/[id]`, `settings`, `welcome`. `welcome` is shown once on first launch (`(tabs)/_layout` redirects while `hasSeenWelcome()` in `src/lib/welcome.ts` is false) and asks for the timer permissions; `settings` (gear on Home) shows the same `TimerPermissionsList` later. Don't put permission prompts on Home. Shared pickers live in `src/components/` (`location-picker`, `machine-picker`, `machine-thumb`, `set-type-dialog`, `set-badge`).
 - **Data**: local-first SQLite via Drizzle (`src/db/`). Screens read with `useLiveQuery`; writes go through repos (`src/features/workouts/repo.ts`, `src/features/session/repo.ts`, `src/features/places/repo.ts`).
 - **Timer** (`src/features/timer/`):
   - `engine.ts` — pure, timestamp-based (`startedAt`, `pausedTotalMs`, `extraSec`); never accumulate ticks. Fully unit-tested.

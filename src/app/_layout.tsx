@@ -54,6 +54,8 @@ export default function RootLayout() {
               <Stack.Screen name="locations/new" options={{ title: 'Novo local', presentation: 'modal' }} />
               <Stack.Screen name="locations/[id]" options={{ title: 'Local' }} />
               <Stack.Screen name="machines/[id]" options={{ title: 'Máquina' }} />
+              <Stack.Screen name="settings" options={{ title: 'Ajustes' }} />
+              <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
             </Stack>
           ) : null}
         </ThemeProvider>

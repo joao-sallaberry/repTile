@@ -9,7 +9,6 @@ import { db } from '@/db/client';
 import { sessions, workouts } from '@/db/schema';
 import { useCurrentLocation } from '@/features/places/current';
 import { LOCATION_KIND_LABEL, useLocation } from '@/features/places/queries';
-import { TimerPermissionsCard } from '@/features/timer/permissions-card';
 import { describeResult } from '@/features/workouts/describe';
 import { formatDate } from '@/lib/format';
 import { WORKOUT_TYPE_ICON, WORKOUT_TYPE_LABEL } from '@/theme';
@@ -45,6 +44,7 @@ export default function HomeScreen() {
     <View style={styles.flex}>
       <Appbar.Header>
         <Appbar.Content title="RepTile" />
+        <Appbar.Action icon="cog-outline" accessibilityLabel="Ajustes" onPress={() => router.push('/settings')} />
       </Appbar.Header>
       <ScrollView contentContainerStyle={styles.content}>
         {current && (
@@ -64,8 +64,6 @@ export default function HomeScreen() {
             </Card.Actions>
           </Card>
         )}
-
-        <TimerPermissionsCard />
 
         <Card mode="outlined">
           <List.Item
