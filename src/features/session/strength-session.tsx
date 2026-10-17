@@ -344,7 +344,7 @@ function SetRow({
             label=""
             accessibilityLabel={`Série ${label}, peso em kg`}
             decimal
-            value={set.weight}
+            value={set.weight ?? 0}
             onChange={(weight) => updateSet(set.id, { weight })}
             style={styles.input}
           />

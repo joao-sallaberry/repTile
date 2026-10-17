@@ -366,7 +366,7 @@ function SetsEditor({
                 label=""
                 accessibilityLabel={`Série ${labels[i]}, meta de carga em kg`}
                 decimal
-                value={st.weight}
+                value={st.weight ?? 0}
                 onChange={(weight) => patch(i, { weight })}
               />
             )}

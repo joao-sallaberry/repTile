@@ -55,7 +55,7 @@ export type WorkoutDraft = {
 export const newSet = (type: SetType = 'normal', from?: Partial<SetDraft>): SetDraft => ({
   type,
   reps: from?.reps ?? 10,
-  weight: from?.weight ?? null,
+  weight: from?.weight ?? 0,
   durationSec: from?.durationSec ?? null,
   distanceM: from?.distanceM ?? null,
   calories: from?.calories ?? null,

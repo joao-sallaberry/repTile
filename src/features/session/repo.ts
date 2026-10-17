@@ -107,7 +107,8 @@ export async function startSession(workoutId: string, fallbackLocationId: string
           setIndex,
           type: target.type,
           reps: target.reps ?? prev?.reps ?? null,
-          weight: target.weight ?? prev?.weight ?? null,
+          // A 0 kg target means "no target": use last time's load.
+          weight: target.weight || prev?.weight || 0,
           durationSec: target.durationSec,
           distanceM: target.distanceM,
           calories: target.calories,
@@ -274,7 +275,7 @@ export async function addSet(sessionId: string, position: number, type: SetType 
     setIndex: insertAfter + 1,
     type,
     reps: last.reps,
-    weight: last.weight,
+    weight: last.weight ?? 0,
     durationSec: last.durationSec,
     distanceM: last.distanceM,
     calories: last.calories,
@@ -295,7 +296,7 @@ export async function addExerciseToSession(sessionId: string, exerciseId: string
     position: (maxPos ?? -1) + 1,
     setIndex: 0,
     reps: 10,
-    weight: (await previousSessionSets(exerciseId, null)).find((p) => countsTowardStats(p.type))?.weight ?? null,
+    weight: (await previousSessionSets(exerciseId, null)).find((p) => countsTowardStats(p.type))?.weight ?? 0,
     restSec: 90,
   });
 }
