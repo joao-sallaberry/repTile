@@ -31,10 +31,16 @@ export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
 
 ```sh
 npm install
-npm run android   # builds, installs on the USB-connected phone and starts Metro
+npm run android   # builds the dev build, installs it on the USB-connected phone and starts Metro
 ```
 
-The development build loads JavaScript from your computer: the phone must stay connected by USB with Metro running (`npx expo start`). If the app shows "Unable to load script", run `adb reverse tcp:8081 tcp:8081` and tap **Reload**.
+The development build (with `expo-dev-client`) loads JavaScript from Metro on your computer, over Wi-Fi:
+
+1. Start Metro: `npx expo start`.
+2. Open RepTile on the phone (same Wi-Fi network as the computer). It reconnects to the last server; otherwise the launcher lists the servers it finds — tap yours, or scan the QR code from the terminal.
+3. Edit the code: changes show up in seconds (Fast Refresh).
+
+USB is only needed to install a new dev build, after a native change (new native dependency, `app.json`, icons). Over USB you can also run `adb reverse tcp:8081 tcp:8081` and connect to `localhost:8081`.
 
 Other commands:
 

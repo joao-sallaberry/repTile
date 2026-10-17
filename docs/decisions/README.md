@@ -30,3 +30,4 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0010 | [Workouts are lists of blocks](0010-workouts-as-blocks.md)                 | Accepted | 2026-10-17 |
 | 0011 | [Exercises have one equipment](0011-exercise-equipment.md)                 | Accepted | 2026-10-17 |
 | 0012 | [Tabata blocks and per-round tracking](0012-tabata-and-round-tracking.md)    | Accepted | 2026-10-17 |
+| 0013 | [Use expo-dev-client for development over Wi-Fi](0013-expo-dev-client.md)  | Accepted | 2026-10-17 |

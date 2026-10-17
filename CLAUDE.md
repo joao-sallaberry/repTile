@@ -24,7 +24,7 @@ npm test             # jest (pure logic: timer engine, PRs, set labels/pairing, 
 npm run typecheck    # tsc --noEmit
 npm run lint         # expo lint
 npm run db:generate  # drizzle-kit migration after editing src/db/schema.ts
-npm run android      # dev build on the USB-connected phone (Pixel 6a, Android 17)
+npm run android      # dev build (expo-dev-client) on the USB-connected phone
 cd android && ./gradlew assembleRelease   # release APK
 ```
 
@@ -65,7 +65,7 @@ Run `npm run typecheck`, `npm run lint` and `npm test` before calling a task don
 
 - Only 6.5 GB RAM. `~/.gradle/gradle.properties` limits Gradle (2 workers, in-process Kotlin, arm64 only). `~/Android/Sdk/cmake/3.22.1/bin/ninja` is a wrapper forcing `-j4` (real binary: `ninja.real`); recreate it if CMake is updated.
 - Use **JDK 17** (`JAVA_HOME=$HOME/.local/jdk-17`). Android Studio's bundled JBR is Java 25 and breaks prefab (`WARNING: A restricted method in java.lang.System has been called`).
-- Dev build: after the phone locks/reconnects, run `adb reverse tcp:8081 tcp:8081`.
+- Dev build (`expo-dev-client`, ADR 0013): JS loads from Metro (`npx expo start`) over Wi-Fi; the launcher lists LAN servers and reconnects to the last one. Prefer it over release builds for testing JS changes. Debug APK without Metro: `cd android && ./gradlew assembleDebug`. Over USB, `adb reverse tcp:8081 tcp:8081` still works after the phone locks/reconnects.
 - Release builds are signed with the debug keystore (fine for sideloading; installs over the dev build keeping data).
 
 ## Roadmap
