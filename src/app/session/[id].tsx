@@ -55,7 +55,7 @@ export default function SessionScreen() {
     await finishSession(session.id, result);
     if (isFree && saveRoutine && routineName.trim()) await saveSessionAsRoutine(session.id, routineName.trim());
     stopTimerFor(session.id);
-    router.replace({ pathname: '/history/[id]', params: { id: session.id } });
+    router.replace({ pathname: '/summary/[id]', params: { id: session.id } });
   };
 
   const discard = () =>

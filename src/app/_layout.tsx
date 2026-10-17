@@ -53,6 +53,7 @@ export default function RootLayout() {
               <Stack.Screen name="session/[id]" options={{ title: 'Treino em andamento' }} />
               <Stack.Screen name="wod/[id]" options={{ title: 'WOD' }} />
               <Stack.Screen name="history/[id]" options={{ title: 'Sessão' }} />
+              <Stack.Screen name="summary/[id]" options={{ headerShown: false }} />
               <Stack.Screen name="exercise/[id]" options={{ title: 'Exercício' }} />
               <Stack.Screen name="locations/index" options={{ title: 'Locais' }} />
               <Stack.Screen name="locations/new" options={{ title: 'Novo local', presentation: 'modal' }} />

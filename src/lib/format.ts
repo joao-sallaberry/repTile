@@ -11,7 +11,7 @@ export function formatDuration(totalSec: number): string {
 
 export function formatWeight(kg: number | null | undefined): string {
   if (kg == null) return '-';
-  return `${Number.isInteger(kg) ? kg : kg.toFixed(1)} kg`;
+  return `${Number.isInteger(kg) ? kg : kg.toFixed(1).replace('.', ',')} kg`;
 }
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', {

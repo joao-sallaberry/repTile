@@ -9,6 +9,7 @@ Android app (React Native + Expo) to plan and run gym and CrossFit workouts.
 - **Locations and machines**: a workout can belong to a gym or box; a machine exercise can be done on a specific machine. Machines are optional, can be shared by several locations, and keep their own load history and PRs. Each machine can have a low-res photo (camera or gallery) to recognise it at the gym.
 - **WOD blocks**: a full-screen timer per format with lead-in countdown — EMOM dial with current/next movement and "Pular", AMRAP round counter with pace, For Time rounds with splits, Tabata with work/rest colors and reps per round — and a result per block with PRs.
 - **Notifications**: alerts when a rest or WOD ends, even with the screen off or the app killed. The needed permissions are asked on a welcome screen at first launch and can be reviewed in Settings.
+- **Workout summary**: after finishing, "Treino concluído!" shows duration, volume, sets, the new records (and what they beat), each exercise's best set and the WOD results; "Atualizar rotina com estes valores" makes today's sets and loads the routine's new targets.
 - **History and PRs**: max weight, estimated 1RM, volume and a progression chart per exercise (filterable by machine). Warm-up sets don't count towards volume or PRs.
 
 Data is stored on the device (SQLite). The app UI is in Portuguese.

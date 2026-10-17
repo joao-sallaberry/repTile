@@ -503,3 +503,65 @@ export async function deleteSession(id: string) {
       .where(and(eq(sessionSets.sessionId, id), isNull(sessionSets.deletedAt)));
   });
 }
+
+/**
+ * "Atualizar rotina com estes valores": the routine's targets become what was done in this session.
+ * Exercises blocks: each routine item takes the completed sets (type, reps, load, machine) of the same exercise
+ * in the matching session block; WOD blocks: each movement takes its reps and load. Items not done, and exercises
+ * added during the session, are left as they are. Returns how many items changed.
+ */
+export async function updateRoutineFromSession(sessionId: string): Promise<number> {
+  const session = await db.query.sessions.findFirst({ where: eq(sessions.id, sessionId) });
+  if (!session?.workoutId) return 0;
+  const draft = await getWorkoutDraft(session.workoutId);
+  if (!draft) return 0;
+  const sBlocks = await db
+    .select()
+    .from(sessionBlocks)
+    .where(and(eq(sessionBlocks.sessionId, sessionId), isNull(sessionBlocks.deletedAt)));
+  const sets = await db
+    .select()
+    .from(sessionSets)
+    .where(and(eq(sessionSets.sessionId, sessionId), isNull(sessionSets.deletedAt)))
+    .orderBy(asc(sessionSets.position), asc(sessionSets.setIndex));
+
+  let changed = 0;
+  for (const block of draft.blocks) {
+    const sb = sBlocks.find((b) => b.workoutBlockId && b.workoutBlockId === block.id);
+    if (!sb) continue;
+    // One group per exercise of the session block, in order.
+    const groups = new Map<number, SessionSet[]>();
+    for (const s of sets) if (s.sessionBlockId === sb.id) groups.set(s.position, [...(groups.get(s.position) ?? []), s]);
+    const unused = [...groups.values()];
+
+    for (const item of block.items) {
+      const i = unused.findIndex((g) => g[0].exerciseId === item.exerciseId);
+      if (i < 0) continue;
+      const [group] = unused.splice(i, 1);
+      if (block.kind === 'exercises') {
+        const done = group.filter((s) => s.completedAt);
+        if (!done.length) continue;
+        item.sets = done.map((s, j) => ({
+          id: item.sets[j]?.id,
+          type: s.type,
+          reps: s.reps,
+          weight: s.weight ?? 0,
+          durationSec: s.durationSec,
+          distanceM: s.distanceM,
+          calories: s.calories,
+        }));
+        item.machineId = done[0].machineId ?? item.machineId;
+      } else {
+        const m = group[0];
+        item.reps = m.reps;
+        item.weight = m.weight;
+        item.durationSec = m.durationSec;
+        item.distanceM = m.distanceM;
+        item.calories = m.calories;
+      }
+      changed++;
+    }
+  }
+  if (changed) await saveWorkout(session.workoutId, draft);
+  return changed;
+}
