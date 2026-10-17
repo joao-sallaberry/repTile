@@ -62,13 +62,19 @@ export function WodBlockCard({ block, movements }: { block: SessionBlock; moveme
               ? 'Um movimento por round, em sequência'
               : undefined
         }
+        titleNumberOfLines={2}
         left={(p) => <List.Icon {...p} icon={BLOCK_KIND_ICON[block.kind]} color={theme.colors.secondary} />}
+        rightStyle={styles.titleRight}
         right={() => (
           <View style={styles.row}>
-            {hasProgress && <IconButton icon="restore" accessibilityLabel="Zerar bloco" onPress={confirmReset} />}
+            {hasProgress && (
+              <IconButton icon="restore" size={20} style={styles.compactIcon} accessibilityLabel="Zerar bloco" onPress={confirmReset} />
+            )}
             {!done && (
               <IconButton
                 icon="tune-variant"
+                size={20}
+                style={styles.compactIcon}
                 accessibilityLabel="Configurar bloco"
                 onPress={() => {
                   setConfig(block);
@@ -76,7 +82,15 @@ export function WodBlockCard({ block, movements }: { block: SessionBlock; moveme
                 }}
               />
             )}
-            {!done && <IconButton icon="delete-outline" accessibilityLabel="Remover bloco" onPress={confirmRemove} />}
+            {!done && (
+              <IconButton
+                icon="delete-outline"
+                size={20}
+                style={styles.compactIcon}
+                accessibilityLabel="Remover bloco"
+                onPress={confirmRemove}
+              />
+            )}
           </View>
         )}
       />
@@ -199,6 +213,9 @@ export function WodBlockCard({ block, movements }: { block: SessionBlock; moveme
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   row: { flexDirection: 'row' },
+  // Card title actions: 40 px buttons so the block format keeps room next to them.
+  compactIcon: { margin: 0 },
+  titleRight: { marginRight: 4 },
   // Card.Content only pads its bottom when it's the card's last child; the picker and dialog come after it.
   content: { gap: 8, paddingBottom: 16 },
   movement: { flexDirection: 'row', alignItems: 'center', gap: 6 },

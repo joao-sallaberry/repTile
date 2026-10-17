@@ -237,14 +237,23 @@ function BlockEditor({
 
   const blockActions = (
     <View style={styles.row}>
-      <IconButton icon="arrow-up" accessibilityLabel="Mover bloco para cima" disabled={index === 0} onPress={() => onMove(-1)} />
+      <IconButton
+        icon="arrow-up"
+        size={20}
+        style={styles.compactIcon}
+        accessibilityLabel="Mover bloco para cima"
+        disabled={index === 0}
+        onPress={() => onMove(-1)}
+      />
       <IconButton
         icon="arrow-down"
+        size={20}
+        style={styles.compactIcon}
         accessibilityLabel="Mover bloco para baixo"
         disabled={index === count - 1}
         onPress={() => onMove(1)}
       />
-      <IconButton icon="delete-outline" accessibilityLabel="Remover bloco" onPress={onRemove} />
+      <IconButton icon="delete-outline" size={20} style={styles.compactIcon} accessibilityLabel="Remover bloco" onPress={onRemove} />
     </View>
   );
 
@@ -319,8 +328,10 @@ function BlockEditor({
       <Card.Title
         title={describeBlockFormat(block)}
         titleVariant="titleMedium"
+        titleNumberOfLines={2}
         left={(p) => <List.Icon {...p} icon={BLOCK_KIND_ICON[block.kind]} color={theme.colors.secondary} />}
         right={() => blockActions}
+        rightStyle={styles.titleRight}
       />
       <Card.Content style={styles.wodContent}>
         <BlockConfigFields config={block} onChange={onChange} />
@@ -517,6 +528,9 @@ function cleanDraft(d: WorkoutDraft): WorkoutDraft {
 }
 
 const styles = StyleSheet.create({
+  // Card title actions: 40 px buttons so the block format keeps room next to them.
+  compactIcon: { margin: 0 },
+  titleRight: { marginRight: 4 },
   flex: { flex: 1 },
   content: { padding: 16, gap: 12, paddingBottom: 48 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },

@@ -184,14 +184,15 @@ export default function WorkoutDetailScreen() {
                 </View>
               ))}
               {best && (
-                <>
+                // A View, not a Fragment: Card passes `index`/`total` props to its direct children.
+                <View>
                   <Divider />
                   <List.Item
                     title={`Melhor: ${describeResult(best)}`}
                     description={best.finishedAt ? formatDate(best.finishedAt) : undefined}
                     left={(p) => <List.Icon {...p} icon="trophy-outline" />}
                   />
-                </>
+                </View>
               )}
             </Card>
           );

@@ -14,7 +14,9 @@ const monthFmt = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeri
 function groupByMonth(list: Session[]) {
   const groups: { title: string; data: Session[] }[] = [];
   for (const s of list) {
-    const title = monthFmt.format(new Date(s.startedAt));
+    // "outubro de 2026" -> "Outubro de 2026" (textTransform: capitalize would also capitalize "de").
+    const month = monthFmt.format(new Date(s.startedAt));
+    const title = month.charAt(0).toUpperCase() + month.slice(1);
     const last = groups.at(-1);
     if (last?.title === title) last.data.push(s);
     else groups.push({ title, data: [s] });
@@ -42,7 +44,7 @@ export default function HistoryScreen() {
         sections={groupByMonth(data)}
         keyExtractor={(s) => s.id}
         renderSectionHeader={({ section }) => (
-          <List.Subheader style={styles.header}>{section.title}</List.Subheader>
+          <List.Subheader>{section.title}</List.Subheader>
         )}
         renderItem={({ item }) => (
           <List.Item
@@ -72,6 +74,5 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { textTransform: 'capitalize' },
   empty: { alignItems: 'center', padding: 32, gap: 8 },
 });

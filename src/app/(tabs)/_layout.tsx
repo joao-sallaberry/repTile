@@ -10,7 +10,9 @@ export default function TabsLayout() {
     <NativeTabs
       backgroundColor={theme.colors.elevation.level2}
       indicatorColor={theme.colors.primaryContainer}
-      labelStyle={{ selected: { color: theme.colors.onSurface } }}>
+      // Android hides the labels of unselected tabs when there are more than 3; always show them.
+      labelVisibilityMode="labeled"
+      labelStyle={{ default: { color: theme.colors.onSurfaceVariant }, selected: { color: theme.colors.onSurface } }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Início</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
