@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -6,9 +6,10 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Chip, Dialog, IconButton, List, Portal, Text } from 'react-native-paper';
 
 import { BarChart } from '@/components/bar-chart';
+import { MachineThumb } from '@/components/machine-thumb';
 import { EquipmentChips, equipmentText, MEASURE_LABEL } from '@/components/exercise-picker';
 import { db } from '@/db/client';
-import { exercises, sessionSets, type Equipment } from '@/db/schema';
+import { exercises, machineExercises, machines, sessionSets, type Equipment } from '@/db/schema';
 import { useMachineMap } from '@/features/places/queries';
 import { performedSets, type PerformedSetRow } from '@/features/session/repo';
 import { countsTowardStats } from '@/features/session/sets';
@@ -27,6 +28,16 @@ export default function ExerciseDetailScreen() {
   // undefined = every machine; null = without a machine
   const [machineFilter, setMachineFilter] = useState<string | null | undefined>(undefined);
   const machineMap = useMachineMap();
+  // Machines this exercise is done on (their screen has the photo).
+  const { data: linkedMachines } = useLiveQuery(
+    db
+      .select({ machine: machines })
+      .from(machineExercises)
+      .innerJoin(machines, eq(machines.id, machineExercises.machineId))
+      .where(and(eq(machineExercises.exerciseId, id), isNull(machineExercises.deletedAt), isNull(machines.deletedAt)))
+      .orderBy(asc(machines.name)),
+    [id],
+  );
   const [equipment, setEquipment] = useState<Equipment | null>(null);
 
   useEffect(() => {
@@ -143,6 +154,30 @@ export default function ExerciseDetailScreen() {
               format={(v) => (Number.isInteger(v) ? String(v) : v.toFixed(1))}
             />
           </Card.Content>
+        </Card>
+      )}
+
+      {(exercise.equipment === 'machine' || linkedMachines.length > 0) && (
+        <Card mode="outlined">
+          <Card.Title title="Máquinas" subtitle={linkedMachines.length ? 'Toque para ver a foto, os locais e o histórico' : undefined} />
+          {linkedMachines.length ? (
+            linkedMachines.map(({ machine }) => (
+              <List.Item
+                key={machine.id}
+                title={machine.name}
+                description={machine.photo ? undefined : 'Sem foto · toque para adicionar'}
+                left={(p) => <MachineThumb photo={machine.photo} style={p.style} />}
+                right={(p) => <List.Icon {...p} icon="chevron-right" />}
+                onPress={() => router.push({ pathname: '/machines/[id]', params: { id: machine.id } })}
+              />
+            ))
+          ) : (
+            <Card.Content>
+              <Text variant="bodyMedium" style={styles.hint}>
+                Escolha a máquina durante o treino (no nome do exercício) e ela aparece aqui.
+              </Text>
+            </Card.Content>
+          )}
         </Card>
       )}
 

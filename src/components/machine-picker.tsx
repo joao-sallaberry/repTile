@@ -1,6 +1,7 @@
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
-import { Button, Dialog, Divider, List, Portal, Text, TextInput } from 'react-native-paper';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Button, Dialog, Divider, IconButton, List, Portal, Text, TextInput } from 'react-native-paper';
 
 import { MachineThumb } from '@/components/machine-thumb';
 import { createMachine, linkMachineToLocation, machinesForExercise, type MachineOption } from '@/features/places/repo';
@@ -46,6 +47,10 @@ export function MachinePicker({
     setName('');
     onDismiss();
   };
+  const openMachine = (id: string) => {
+    close();
+    router.push({ pathname: '/machines/[id]', params: { id } });
+  };
 
   const row = (o: MachineOption, showLocations: boolean) => (
     <List.Item
@@ -55,7 +60,17 @@ export function MachinePicker({
         showLocations ? (o.locations.length ? o.locations.map((l) => l.name).join(', ') : 'Sem local') : undefined
       }
       left={(p) => <MachineThumb photo={o.machine.photo} style={p.style} />}
-      right={(p) => (o.machine.id === currentMachineId ? <List.Icon {...p} icon="check" /> : null)}
+      right={(p) => (
+        <View style={styles.rowRight}>
+          {o.machine.id === currentMachineId && <List.Icon {...p} icon="check" />}
+          {/* The machine's screen: photo, locations and history. */}
+          <IconButton
+            icon={o.machine.photo ? 'information-outline' : 'camera-plus-outline'}
+            accessibilityLabel={o.machine.photo ? `Detalhes de ${o.machine.name}` : `Tirar foto de ${o.machine.name}`}
+            onPress={() => openMachine(o.machine.id)}
+          />
+        </View>
+      )}
       onPress={() => pick(o.machine.id)}
     />
   );
@@ -129,4 +144,5 @@ const styles = StyleSheet.create({
   dialog: { maxHeight: '85%' },
   scroll: { paddingHorizontal: 0, maxHeight: 440 },
   form: { gap: 12 },
+  rowRight: { flexDirection: 'row', alignItems: 'center' },
 });
