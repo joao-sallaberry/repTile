@@ -50,6 +50,13 @@
       "when": 1792272008309,
       "tag": "0006_tabata_splits",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792287695500,
+      "tag": "0007_delete_orphan_sets",
+      "breakpoints": true
     }
   ]
 }

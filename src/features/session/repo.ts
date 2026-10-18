@@ -354,6 +354,8 @@ export async function addSet(sessionId: string, position: number, type: SetType 
   await db.insert(sessionSets).values({
     ...createdFields(),
     sessionId,
+    // Same block as the exercise's other sets: the session screen lists sets per block.
+    sessionBlockId: last.sessionBlockId,
     exerciseId: last.exerciseId,
     machineId: last.machineId,
     position,
