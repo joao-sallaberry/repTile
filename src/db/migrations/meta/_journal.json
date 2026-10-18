@@ -57,6 +57,13 @@
       "when": 1792287695500,
       "tag": "0007_delete_orphan_sets",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792297071605,
+      "tag": "0008_cable_equipment",
+      "breakpoints": true
     }
   ]
 }

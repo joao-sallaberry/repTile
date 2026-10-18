@@ -10,7 +10,7 @@ const SEED: SeedExercise[] = [
   ['incline-bench-press', 'Supino inclinado', 'Peito', 'weight_reps', 'barbell'],
   ['db-bench-press', 'Supino com halteres', 'Peito', 'weight_reps', 'dumbbell'],
   ['chest-fly', 'Crucifixo', 'Peito', 'weight_reps', 'dumbbell'],
-  ['cable-crossover', 'Crossover', 'Peito', 'weight_reps', 'machine'],
+  ['cable-crossover', 'Crossover', 'Peito', 'weight_reps', 'cable'],
   ['push-up', 'Flexão', 'Peito', 'reps', 'none'],
   // Back
   ['deadlift', 'Levantamento terra', 'Costas', 'weight_reps', 'barbell'],
@@ -32,11 +32,13 @@ const SEED: SeedExercise[] = [
   ['overhead-press', 'Desenvolvimento', 'Ombros', 'weight_reps', 'barbell'],
   ['lateral-raise', 'Elevação lateral', 'Ombros', 'weight_reps', 'dumbbell'],
   ['front-raise', 'Elevação frontal', 'Ombros', 'weight_reps', 'dumbbell'],
-  ['face-pull', 'Face pull', 'Ombros', 'weight_reps', 'machine'],
+  ['face-pull', 'Face pull', 'Ombros', 'weight_reps', 'cable'],
+  ['external-rotation', 'Rotação externa', 'Ombros', 'weight_reps', 'cable'],
+  ['internal-rotation', 'Rotação interna', 'Ombros', 'weight_reps', 'cable'],
   // Arms
   ['barbell-curl', 'Rosca direta', 'Braços', 'weight_reps', 'barbell'],
   ['hammer-curl', 'Rosca martelo', 'Braços', 'weight_reps', 'dumbbell'],
-  ['triceps-pushdown', 'Tríceps pulley', 'Braços', 'weight_reps', 'machine'],
+  ['triceps-pushdown', 'Tríceps pulley', 'Braços', 'weight_reps', 'cable'],
   ['skull-crusher', 'Tríceps testa', 'Braços', 'weight_reps', 'barbell'],
   ['dip', 'Paralelas (dip)', 'Braços', 'reps', 'other'],
   // Core

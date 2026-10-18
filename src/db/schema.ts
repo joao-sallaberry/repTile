@@ -19,8 +19,8 @@ const syncColumns = {
 export const MEASURES = ['weight_reps', 'reps', 'time', 'distance', 'calories'] as const;
 export type Measure = (typeof MEASURES)[number];
 
-/** What an exercise is done with. Only `machine` exercises get a specific machine picked in routines and sessions. */
-export const EQUIPMENT = ['none', 'barbell', 'band', 'dumbbell', 'suspension', 'kettlebell', 'machine', 'other'] as const;
+/** What an exercise is done with. `machine` and `cable` exercises get a specific station (a `machines` row) picked in routines and sessions. */
+export const EQUIPMENT = ['none', 'barbell', 'band', 'dumbbell', 'suspension', 'kettlebell', 'cable', 'machine', 'other'] as const;
 export type Equipment = (typeof EQUIPMENT)[number];
 
 /**

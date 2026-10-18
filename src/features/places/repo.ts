@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, notInArray } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import {
@@ -69,11 +69,11 @@ export async function linkMachineToExercise(machineId: string, exerciseId: strin
     ),
   });
   if (!existing) await db.insert(machineExercises).values({ ...createdFields(), machineId, exerciseId });
-  // An exercise done on a machine is a machine exercise.
+  // An exercise done on a machine is a machine exercise (cable exercises also use stations).
   await db
     .update(exercises)
     .set({ equipment: 'machine', ...touched() })
-    .where(and(eq(exercises.id, exerciseId), ne(exercises.equipment, 'machine')));
+    .where(and(eq(exercises.id, exerciseId), notInArray(exercises.equipment, ['machine', 'cable'])));
 }
 
 export async function unlinkMachineFromExercise(machineId: string, exerciseId: string) {

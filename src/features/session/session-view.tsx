@@ -5,7 +5,7 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, IconButton, Menu, Snackbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
 import { DurationField } from '@/components/duration-field';
-import { equipmentText, ExercisePicker } from '@/components/exercise-picker';
+import { equipmentText, ExercisePicker, hasStation, stationNoun } from '@/components/exercise-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
 import { MachineThumb } from '@/components/machine-thumb';
@@ -250,6 +250,7 @@ function ExerciseCard({
   const [typeFor, setTypeFor] = useState<SessionSet | null>(null);
   const { exerciseId, machineId, position, restSec } = sets[0];
   const machine = machineId ? machineMap.get(machineId) : undefined;
+  const noun = stationNoun(exercise?.equipment);
   const measure = exercise?.measure ?? 'weight_reps';
 
   useEffect(() => {
@@ -287,7 +288,7 @@ function ExerciseCard({
           <Text variant="titleMedium" style={{ color: theme.colors.primary }}>
             {exercise?.name ?? 'Exercício'}
           </Text>
-          {exercise && exercise.equipment !== 'machine' && !machine ? (
+          {exercise && !hasStation(exercise.equipment) && !machine ? (
             <Text variant="bodySmall" style={styles.muted}>
               {equipmentText(exercise)}
             </Text>
@@ -295,7 +296,7 @@ function ExerciseCard({
             <TouchableRipple
               onPress={() => setMachineOpen(true)}
               accessibilityRole="button"
-              accessibilityLabel={machine ? `Máquina: ${machine.name}. Toque para trocar` : 'Associar uma máquina'}
+              accessibilityLabel={machine ? `${machine.name}. Toque para trocar` : `Associar uma ${noun}`}
               style={styles.machineChip}>
               <View style={styles.row}>
                 {machine?.photo ? (
@@ -304,7 +305,7 @@ function ExerciseCard({
                   <IconButton icon="cog-outline" size={14} style={styles.noMargin} />
                 )}
                 <Text variant="bodySmall" style={styles.muted}>
-                  {machine?.name ?? 'Sem máquina · escolher'}
+                  {machine?.name ?? `Sem ${noun} · escolher`}
                 </Text>
               </View>
             </TouchableRipple>
@@ -361,6 +362,7 @@ function ExerciseCard({
         visible={machineOpen}
         exerciseId={exerciseId}
         exerciseName={exercise?.name ?? ''}
+        noun={noun}
         locationId={session.locationId}
         locationName={locationName}
         currentMachineId={machineId}

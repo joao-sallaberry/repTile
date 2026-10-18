@@ -7,6 +7,7 @@ import m0004 from './0004_blocks.sql';
 import m0005 from './0005_exercise_equipment.sql';
 import m0006 from './0006_tabata_splits.sql';
 import m0007 from './0007_delete_orphan_sets.sql';
+import m0008 from './0008_cable_equipment.sql';
 
   export default {
     journal,
@@ -18,7 +19,8 @@ m0003,
 m0004,
 m0005,
 m0006,
-m0007
+m0007,
+m0008
     }
   }
   

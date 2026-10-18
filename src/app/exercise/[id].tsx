@@ -7,7 +7,7 @@ import { Button, Card, Chip, Dialog, IconButton, List, Portal, Text } from 'reac
 
 import { BarChart } from '@/components/bar-chart';
 import { MachineThumb } from '@/components/machine-thumb';
-import { EquipmentChips, equipmentText, MEASURE_LABEL } from '@/components/exercise-picker';
+import { EquipmentChips, equipmentText, hasStation, MEASURE_LABEL, stationNoun } from '@/components/exercise-picker';
 import { db } from '@/db/client';
 import { exercises, machineExercises, machines, sessionSets, type Equipment } from '@/db/schema';
 import { useMachineMap } from '@/features/places/queries';
@@ -101,9 +101,10 @@ export default function ExerciseDetailScreen() {
           <Dialog.Title>Equipamento</Dialog.Title>
           <Dialog.Content>
             <EquipmentChips value={equipment ?? exercise.equipment} onChange={setEquipment} />
-            {equipment === 'machine' && (
+            {hasStation(equipment ?? undefined) && (
               <Text variant="bodySmall" style={styles.hint}>
-                No treino você escolhe a máquina específica; o “Anterior” e os PRs ficam separados por máquina.
+                No treino você escolhe a {stationNoun(equipment ?? undefined)} específica; o “Anterior” e os PRs ficam separados por{' '}
+                {stationNoun(equipment ?? undefined)}.
               </Text>
             )}
           </Dialog.Content>
@@ -157,9 +158,9 @@ export default function ExerciseDetailScreen() {
         </Card>
       )}
 
-      {(exercise.equipment === 'machine' || linkedMachines.length > 0) && (
+      {(hasStation(exercise.equipment) || linkedMachines.length > 0) && (
         <Card mode="outlined">
-          <Card.Title title="Máquinas" subtitle={linkedMachines.length ? 'Toque para ver a foto, os locais e o histórico' : undefined} />
+          <Card.Title title={exercise.equipment === 'cable' ? 'Polias' : 'Máquinas'} subtitle={linkedMachines.length ? 'Toque para ver a foto, os locais e o histórico' : undefined} />
           {linkedMachines.length ? (
             linkedMachines.map(({ machine }) => (
               <List.Item
@@ -174,7 +175,7 @@ export default function ExerciseDetailScreen() {
           ) : (
             <Card.Content>
               <Text variant="bodyMedium" style={styles.hint}>
-                Escolha a máquina durante o treino (no nome do exercício) e ela aparece aqui.
+                Escolha a {stationNoun(exercise.equipment)} durante o treino (no nome do exercício) e ela aparece aqui.
               </Text>
             </Card.Content>
           )}

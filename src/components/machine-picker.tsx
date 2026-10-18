@@ -20,6 +20,8 @@ type Props = {
   locationId: string | null;
   locationName?: string;
   currentMachineId: string | null;
+  /** "máquina" or "polia" (cable exercises), for the dialog's wording. */
+  noun?: string;
   onDismiss: () => void;
   onPick: (machineId: string | null) => void;
 };
@@ -32,9 +34,11 @@ export function MachinePicker({
   locationId,
   locationName,
   currentMachineId,
+  noun = 'máquina',
   onDismiss,
   onPick,
 }: Props) {
+  const Noun = noun.charAt(0).toUpperCase() + noun.slice(1);
   const [options, setOptions] = useState<Awaited<ReturnType<typeof machinesForExercise>> | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -86,13 +90,13 @@ export function MachinePicker({
   return (
     <Portal>
       <Dialog visible={visible} onDismiss={close} style={styles.dialog}>
-        <Dialog.Title>{creating ? 'Nova máquina' : 'Máquina'}</Dialog.Title>
+        <Dialog.Title>{creating ? `Nova ${noun}` : Noun}</Dialog.Title>
         {creating ? (
           <>
             <Dialog.Content style={styles.form}>
               <TextInput
                 mode="outlined"
-                label="Nome (ex.: Powergym do canto esquerdo)"
+                label={noun === 'polia' ? 'Nome (ex.: Polia dupla do fundo)' : 'Nome (ex.: Powergym do canto esquerdo)'}
                 value={name}
                 onChangeText={setName}
                 autoFocus
@@ -114,7 +118,9 @@ export function MachinePicker({
         ) : (
           <>
             <Dialog.Content>
-              <Text variant="bodyMedium">{exerciseName} · o “Anterior” e os PRs são separados por máquina</Text>
+              <Text variant="bodyMedium">
+                {exerciseName} · o “Anterior” e os PRs são separados por {noun}
+              </Text>
             </Dialog.Content>
             <Dialog.ScrollArea style={styles.scroll}>
               <ScrollView>
@@ -124,16 +130,16 @@ export function MachinePicker({
                   <List.Subheader>{locationName ? `Neste local · ${locationName}` : 'Neste local'}</List.Subheader>
                 )}
                 {options?.here.map((o) => row(o, false))}
-                {options && options.others.length > 0 && <List.Subheader>Outras máquinas</List.Subheader>}
+                {options && options.others.length > 0 && <List.Subheader>Outros aparelhos</List.Subheader>}
                 {options?.others.map((o) => row(o, true))}
                 <List.Item
-                  title="Sem máquina específica"
+                  title={`Sem ${noun} específica`}
                   right={(p) => (currentMachineId == null ? <List.Icon {...p} icon="check" /> : null)}
                   onPress={() => pick(null)}
                 />
                 <Divider />
                 <List.Item
-                  title="Nova máquina"
+                  title={`Nova ${noun}`}
                   description="Só o nome"
                   left={(p) => <List.Icon {...p} icon="plus" />}
                   onPress={() => setCreating(true)}

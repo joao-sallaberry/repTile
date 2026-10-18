@@ -22,6 +22,7 @@ export const EQUIPMENT_LABEL: Record<Equipment, string> = {
   dumbbell: 'Halter',
   suspension: 'Fita de suspensão',
   kettlebell: 'Kettlebell',
+  cable: 'Polia',
   machine: 'Máquina',
   other: 'Outro',
 };
@@ -29,6 +30,12 @@ export const EQUIPMENT_LABEL: Record<Equipment, string> = {
 /** "Barra", or "Sem equipamento" for bodyweight exercises. */
 export const equipmentText = (e: Pick<Exercise, 'equipment'>) =>
   e.equipment === 'none' ? 'Sem equipamento' : EQUIPMENT_LABEL[e.equipment];
+
+/** Machine and cable exercises are done on a specific station, picked with `MachinePicker`. */
+export const hasStation = (equipment: Equipment | undefined) => equipment === 'machine' || equipment === 'cable';
+
+/** What the station is called in the UI: "polia" for cable exercises, else "máquina". */
+export const stationNoun = (equipment: Equipment | undefined) => (equipment === 'cable' ? 'polia' : 'máquina');
 
 /** One chip per equipment, single choice. */
 export function EquipmentChips({ value, onChange }: { value: Equipment; onChange: (e: Equipment) => void }) {

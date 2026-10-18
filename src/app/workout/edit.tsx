@@ -16,7 +16,7 @@ import {
 
 import { BlockConfigFields } from '@/components/block-config-fields';
 import { DurationField } from '@/components/duration-field';
-import { equipmentText, ExercisePicker } from '@/components/exercise-picker';
+import { equipmentText, ExercisePicker, hasStation, stationNoun } from '@/components/exercise-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
 import { NumberField } from '@/components/number-field';
@@ -196,6 +196,7 @@ export default function EditWorkoutScreen() {
           visible
           exerciseId={machineItem.exerciseId}
           exerciseName={exerciseMap.get(machineItem.exerciseId)?.name ?? ''}
+          noun={stationNoun(exerciseMap.get(machineItem.exerciseId)?.equipment)}
           locationId={draft.locationId}
           locationName={location?.name}
           currentMachineId={machineItem.machineId}
@@ -293,9 +294,9 @@ function BlockEditor({
           right={() => actions}
         />
         <Card.Content>
-          {(ex?.equipment === 'machine' || item.machineId) && (
+          {(hasStation(ex?.equipment) || item.machineId) && (
             <Button compact icon="cog-outline" mode="text" style={styles.machineBtn} onPress={() => onPickMachine(i)}>
-              {item.machineId ? 'Trocar máquina' : 'Sem máquina · adicionar'}
+              {item.machineId ? `Trocar ${stationNoun(ex?.equipment)}` : `Sem ${stationNoun(ex?.equipment)} · adicionar`}
             </Button>
           )}
           <ItemFields kind={block.kind} exercise={ex} item={item} onChange={(patch) => setItem(i, patch)} />
