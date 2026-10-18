@@ -22,6 +22,7 @@ import { BLOCK_KIND_ICON, BLOCK_KIND_LABEL } from '@/features/workouts/blocks';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDuration, formatWeight } from '@/lib/format';
 
+import { startsRest, useSessionPreferences } from './preferences';
 import { RestTimerBar } from './rest-timer-bar';
 import {
   addBlockToSession,
@@ -97,7 +98,7 @@ export function SessionView({ session, onFinish }: Props) {
     if (isPR) setPrMessage(`Novo PR em ${ex?.name ?? 'exercício'}: ${formatWeight(set.weight)} × ${set.reps} 🏆`);
 
     const remaining = plainSets.filter((s) => !s.completedAt && s.id !== set.id).length;
-    if (set.restSec && remaining > 0) {
+    if (set.restSec && remaining > 0 && startsRest(set.type, useSessionPreferences.getState())) {
       startTimer({
         sessionId: session.id,
         label: `Descanso · ${ex?.name ?? ''}`,

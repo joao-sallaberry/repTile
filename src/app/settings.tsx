@@ -1,14 +1,16 @@
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Card, Chip, List, Text } from 'react-native-paper';
+import { Card, Chip, List, Switch, Text } from 'react-native-paper';
 
 import { useWeeklyGoal } from '@/features/home/goal';
+import { useSessionPreferences } from '@/features/session/preferences';
 import { TimerPermissionsList } from '@/features/timer/permissions-list';
 
 const GOALS = [null, 1, 2, 3, 4, 5, 6, 7];
 
 export default function SettingsScreen() {
   const { goal, set: setGoal } = useWeeklyGoal();
+  const { restAfterWarmup, setRestAfterWarmup } = useSessionPreferences();
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <Text variant="titleMedium">Avisos do timer</Text>
@@ -32,6 +34,20 @@ export default function SettingsScreen() {
           </Chip>
         ))}
       </View>
+      <Card mode="contained">
+        <List.Item
+          title="Descanso após aquecimento"
+          description={
+            restAfterWarmup
+              ? 'Séries de aquecimento também iniciam o descanso'
+              : 'Só as séries de trabalho iniciam o descanso'
+          }
+          descriptionNumberOfLines={2}
+          left={(p) => <List.Icon {...p} icon="fire" />}
+          right={() => <Switch value={restAfterWarmup} onValueChange={setRestAfterWarmup} />}
+          onPress={() => setRestAfterWarmup(!restAfterWarmup)}
+        />
+      </Card>
       <Card mode="contained">
         <List.Item
           title="Locais e máquinas"
