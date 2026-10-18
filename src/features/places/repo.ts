@@ -135,23 +135,30 @@ export async function locationsByMachine(machineIds: string[]): Promise<Map<stri
 export type MachineOption = { machine: Machine; locations: Location[] };
 
 /**
- * Machines that can be used for an exercise, split into the ones already at
- * `locationId` and the ones elsewhere (or not at any location yet).
+ * Every machine, grouped for picking one for an exercise: the ones already used for it (those at
+ * `locationId` first), the other machines at `locationId`, and the rest. Any machine can be picked
+ * for any exercise (picking one links it).
  */
 export async function machinesForExercise(
   exerciseId: string,
   locationId: string | null,
-): Promise<{ here: MachineOption[]; others: MachineOption[] }> {
-  const rows = await db
-    .select({ machine: machines })
+): Promise<{ forExercise: MachineOption[]; here: MachineOption[]; others: MachineOption[] }> {
+  const all = await db.select().from(machines).where(isNull(machines.deletedAt)).orderBy(asc(machines.name));
+  const linked = await db
+    .select({ machineId: machineExercises.machineId })
     .from(machineExercises)
-    .innerJoin(machines, eq(machines.id, machineExercises.machineId))
-    .where(and(eq(machineExercises.exerciseId, exerciseId), isNull(machineExercises.deletedAt), isNull(machines.deletedAt)))
-    .orderBy(asc(machines.name));
-  const byMachine = await locationsByMachine(rows.map((r) => r.machine.id));
-  const options = rows.map(({ machine }) => ({ machine, locations: byMachine.get(machine.id) ?? [] }));
+    .where(and(eq(machineExercises.exerciseId, exerciseId), isNull(machineExercises.deletedAt)));
+  const linkedIds = new Set(linked.map((l) => l.machineId));
+  const byMachine = await locationsByMachine(all.map((m) => m.id));
+  const options = all.map((machine) => ({ machine, locations: byMachine.get(machine.id) ?? [] }));
   const isHere = (o: MachineOption) => !!locationId && o.locations.some((l) => l.id === locationId);
-  return { here: options.filter(isHere), others: options.filter((o) => !isHere(o)) };
+  const forExercise = options.filter((o) => linkedIds.has(o.machine.id));
+  const rest = options.filter((o) => !linkedIds.has(o.machine.id));
+  return {
+    forExercise: [...forExercise.filter(isHere), ...forExercise.filter((o) => !isHere(o))],
+    here: rest.filter(isHere),
+    others: rest.filter((o) => !isHere(o)),
+  };
 }
 
 /** Exercises each machine is used for. */

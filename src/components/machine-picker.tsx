@@ -4,7 +4,13 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Dialog, Divider, IconButton, List, Portal, Text, TextInput } from 'react-native-paper';
 
 import { MachineThumb } from '@/components/machine-thumb';
-import { createMachine, linkMachineToLocation, machinesForExercise, type MachineOption } from '@/features/places/repo';
+import {
+  createMachine,
+  linkMachineToExercise,
+  linkMachineToLocation,
+  machinesForExercise,
+  type MachineOption,
+} from '@/features/places/repo';
 
 type Props = {
   visible: boolean;
@@ -18,7 +24,7 @@ type Props = {
   onPick: (machineId: string | null) => void;
 };
 
-/** Picks the machine for an exercise: machines at this location first, then the others. */
+/** Picks the machine for an exercise: the ones already used for it, the others at this location, then every other machine. */
 export function MachinePicker({
   visible,
   exerciseId,
@@ -29,7 +35,7 @@ export function MachinePicker({
   onDismiss,
   onPick,
 }: Props) {
-  const [options, setOptions] = useState<{ here: MachineOption[]; others: MachineOption[] } | null>(null);
+  const [options, setOptions] = useState<Awaited<ReturnType<typeof machinesForExercise>> | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
 
@@ -38,6 +44,8 @@ export function MachinePicker({
   }, [visible, exerciseId, locationId]);
 
   const pick = async (machineId: string | null) => {
+    // A machine from another exercise becomes one of this exercise's machines (also from the routine editor).
+    if (machineId) await linkMachineToExercise(machineId, exerciseId);
     if (machineId && locationId) await linkMachineToLocation(machineId, locationId);
     onPick(machineId);
     close();
@@ -110,6 +118,8 @@ export function MachinePicker({
             </Dialog.Content>
             <Dialog.ScrollArea style={styles.scroll}>
               <ScrollView>
+                {options && options.forExercise.length > 0 && <List.Subheader>Usadas neste exercício</List.Subheader>}
+                {options?.forExercise.map((o) => row(o, true))}
                 {options && options.here.length > 0 && (
                   <List.Subheader>{locationName ? `Neste local · ${locationName}` : 'Neste local'}</List.Subheader>
                 )}
