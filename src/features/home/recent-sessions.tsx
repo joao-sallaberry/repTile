@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { Button, Card, Icon, Text, useTheme } from 'react-native-paper';
+import { Button, Card, Text, useTheme } from 'react-native-paper';
 
 import { useLocations } from '@/features/places/queries';
 import { describeBlockFormat } from '@/features/workouts/blocks';
@@ -11,7 +11,7 @@ import { formatMinutes, formatVolume } from './stats';
 
 const weekdayFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' });
 
-/** "Últimos treinos": date, duration, volume, sets, location and a PR badge. */
+/** "Últimos treinos": one compact line per session (duration, volume or WOD result, location) and a PR badge. */
 export function RecentSessions({ limit = 5 }: { limit?: number }) {
   const theme = useTheme();
   const recent = useRecentSessions(limit);
@@ -30,13 +30,13 @@ export function RecentSessions({ limit = 5 }: { limit?: number }) {
       {recent.map((s) => {
         const date = new Date(s.startedAt);
         const duration = s.finishedAt ? formatMinutes((s.finishedAt - s.startedAt) / 1000) : null;
-        const meta = [
-          duration,
-          s.volume ? formatVolume(s.volume) : null,
-          s.sets ? `${s.sets} ${s.sets === 1 ? 'série' : 'séries'}` : null,
-          ...s.wods.map((w) => [describeBlockFormat(w), w.finishedAt ? describeResult(w) : null].filter(Boolean).join(': ')),
-        ];
+        // Volume for exercises; otherwise the first WOD's result (without Rx/Scaled), else its format.
+        const firstWod = s.wods[0];
+        const wodText = firstWod
+          ? ((firstWod.finishedAt && describeResult({ ...firstWod, rx: true })?.replace(/ · Rx$/, '')) || describeBlockFormat(firstWod))
+          : null;
         const place = s.locationId ? locationName.get(s.locationId) : undefined;
+        const meta = [duration, s.volume ? formatVolume(s.volume) : wodText, place].filter(Boolean).join(' · ');
         return (
           <Card key={s.id} mode="contained" onPress={() => router.push({ pathname: '/history/[id]', params: { id: s.id } })}>
             <Card.Content style={styles.row}>
@@ -44,19 +44,17 @@ export function RecentSessions({ limit = 5 }: { limit?: number }) {
                 <Text variant="labelSmall" style={styles.muted}>
                   {weekdayFmt.format(date).replace('.', '').toUpperCase()}
                 </Text>
-                <Text variant="titleLarge">{date.getDate()}</Text>
+                <Text variant="titleMedium">{date.getDate()}</Text>
               </View>
               <View style={styles.flex}>
-                <Text variant="titleSmall">{s.name}</Text>
-                <Text variant="bodySmall" style={styles.muted}>
-                  {meta.filter(Boolean).join(' · ')}
+                <Text variant="titleSmall" numberOfLines={1}>
+                  {s.name}
                 </Text>
-                <View style={styles.place}>
-                  <Icon source="map-marker-outline" size={14} color={theme.colors.onSurfaceVariant} />
+                {meta ? (
                   <Text variant="bodySmall" style={styles.muted} numberOfLines={1}>
-                    {place ?? 'Sem local'}
+                    {meta}
                   </Text>
-                </View>
+                ) : null}
               </View>
               {s.prs > 0 && (
                 <Text
@@ -77,9 +75,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1, gap: 2 },
   section: { gap: 8 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  date: { width: 44, alignItems: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  date: { width: 36, alignItems: 'center' },
   muted: { opacity: 0.7 },
-  place: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: 'hidden' },
 });
