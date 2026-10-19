@@ -3,6 +3,7 @@ import type { ViewStyle } from 'react-native';
 import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Chip, Dialog, List, Portal, SegmentedButtons, Searchbar, Text, TextInput } from 'react-native-paper';
 
+import { ExerciseThumb } from '@/components/exercise-media';
 import { EQUIPMENT, MEASURES, type Equipment, type Exercise, type Measure } from '@/db/schema';
 import { useExercises } from '@/features/workouts/queries';
 import {
@@ -126,6 +127,7 @@ export function ExercisePicker({ visible, onDismiss, onPick }: Props) {
                   <List.Item
                     title={item.name}
                     description={`${item.category} · ${equipmentText(item)}`}
+                    left={(p) => <ExerciseThumb exerciseId={item.id} equipment={item.equipment[0]} style={p.style} />}
                     onPress={() => pick(item.id)}
                   />
                 )}

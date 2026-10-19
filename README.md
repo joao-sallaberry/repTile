@@ -6,6 +6,7 @@ Android app (React Native + Expo) to plan and run gym and CrossFit workouts.
 - **Blocks**: a workout is a list of blocks — plain exercises and timed WOD blocks (AMRAP, EMOM — also alternating, one movement per interval —, For Time and Tabata) in any mix, done in any order. Blocks can also be added during a workout.
 - **Exercises** (Hevy-style set log): warm-up, normal, drop and to-failure sets, each with its own weight and reps; a "Previous" column with what you did last time; automatic rest timer between sets (warm-ups can skip it, in Ajustes). Start and end times can be adjusted when finishing.
 - **Equipment**: each exercise lists the equipment it can be done with (none, barbell, band, dumbbell, suspension trainer, kettlebell, cable, machine, other), editable on its screen; exercise lists can be filtered by equipment. When there are several (e.g. a curl with barbell, dumbbells or cable), routines and sessions pick the one used, and "Anterior" and PRs are kept per equipment.
+- **Exercise library**: ~150 common gym and CrossFit exercises, most of them with an illustration per equipment (animated start/peak poses on the exercise's screen, a still thumbnail in lists and in the workout — tap it to see the movement). You can also create your own.
 - **Locations and machines**: a workout can belong to a gym or box; a machine or cable exercise can be done on a specific machine or cable station. Machines are optional, can be shared by several locations, and keep their own load history and PRs. Each machine can have a low-res photo (camera or gallery) to recognise it at the gym: open the machine from the machine picker in a workout (camera button), from the exercise's screen ("Máquinas") or from its location.
 - **WOD blocks**: a full-screen timer per format with lead-in countdown — EMOM dial with current/next movement and "Pular", AMRAP round counter with pace, For Time rounds with splits, Tabata with work/rest colors and reps per round — and a result per block with PRs.
 - **Notifications**: alerts when a rest or WOD ends, even with the screen off or the app killed. The needed permissions are asked on a welcome screen at first launch and can be reviewed in Settings.
@@ -13,6 +14,8 @@ Android app (React Native + Expo) to plan and run gym and CrossFit workouts.
 - **History and PRs**: max weight, estimated 1RM, volume and a progression chart per exercise (filterable by machine). Warm-up sets don't count towards volume or PRs.
 
 Data is stored on the device (SQLite). The app UI is in Portuguese.
+
+Exercise illustrations: Exercise data by [RepDB (repdb.co)](https://repdb.co), free tier, used under its [license](https://github.com/sergei-argutin/exercise-dataset/blob/main/LICENSE-DATA.md) (in-app use with attribution; no redistribution of the images as a dataset, no generative-AI use). The images are **not** in this repository: `npm install` downloads them (see below).
 
 ## Requirements
 
@@ -35,6 +38,8 @@ npm install
 npm run android   # builds the dev build, installs it on the USB-connected phone and starts Metro
 ```
 
+`npm install` also downloads the exercise illustrations (~6 MB) into `assets/exercise-media/` and generates `src/features/exercises/media.generated.ts`. Both are git-ignored; never commit them (RepDB license). Without network the install still works and exercises show no images; run `npm run media:fetch` later.
+
 The development build (with `expo-dev-client`) loads JavaScript from Metro on your computer, over Wi-Fi:
 
 1. Start Metro: `npx expo start`.
@@ -46,10 +51,11 @@ USB is only needed to install a new dev build, after a native change (new native
 Other commands:
 
 ```sh
-npm test            # tests (timer, PRs, set labels/pairing, equipment)
+npm test            # tests (timer, PRs, set labels/pairing, equipment, illustrations)
 npm run typecheck   # TypeScript
 npm run lint        # ESLint
 npm run db:generate # generate a migration after changing src/db/schema.ts
+npm run media:fetch # download missing exercise illustrations (also runs on npm install)
 ```
 
 ## Building a release APK
@@ -95,6 +101,8 @@ src/features/session/    # running workouts (exercise blocks and WOD blocks)
 src/features/stats/      # PR calculations
 src/features/places/     # locations, machines (and their photos) and the current location
 src/features/workouts/   # workout editing and exercise equipment
+src/features/exercises/  # exercise illustrations: seed exercise → RepDB image per equipment
+scripts/                 # fetch-exercise-media.mjs (downloads the illustrations on npm install)
 plugins/                 # config plugins (notification sounds)
 assets/icon/             # mascot art + script that renders the app icons
 docs/decisions/          # design decisions (ADRs)

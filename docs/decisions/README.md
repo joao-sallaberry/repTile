@@ -33,3 +33,4 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0013 | [Use expo-dev-client for development over Wi-Fi](0013-expo-dev-client.md)  | Accepted | 2026-10-17 |
 | 0014 | [Cable (Polia) equipment uses stations like machines](0014-cable-equipment.md) | Accepted | 2026-10-18 |
 | 0015 | [Exercises list several equipment; the one used is recorded per set](0015-multiple-equipment.md) | Accepted | 2026-10-18 |
+| 0016 | [Exercise illustrations from RepDB, downloaded on install](0016-exercise-illustrations.md) | Accepted | 2026-10-18 |

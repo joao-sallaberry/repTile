@@ -6,15 +6,17 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Chip, Dialog, IconButton, List, Portal, Text } from 'react-native-paper';
 
 import { BarChart } from '@/components/bar-chart';
+import { ExerciseMedia, hasExerciseMedia } from '@/components/exercise-media';
 import { MachineThumb } from '@/components/machine-thumb';
 import { EquipmentChips, MEASURE_LABEL } from '@/components/exercise-picker';
 import { db } from '@/db/client';
 import { exercises, machineExercises, machines, sessionSets, type Equipment } from '@/db/schema';
+import { mediaEquipment } from '@/features/exercises/media-map';
 import { useMachineMap } from '@/features/places/queries';
 import { performedSets, type PerformedSetRow } from '@/features/session/repo';
 import { countsTowardStats } from '@/features/session/sets';
 import { computePRs, estimateOneRepMax, type PerformedSet } from '@/features/stats/prs';
-import { equipmentLabel, equipmentText, hasStation, stationNoun } from '@/features/workouts/equipment';
+import { defaultEquipment, equipmentLabel, equipmentText, hasStation, stationNoun } from '@/features/workouts/equipment';
 import { deleteExercise, updateExercise } from '@/features/workouts/repo';
 import { formatDate, formatWeight } from '@/lib/format';
 
@@ -49,6 +51,8 @@ export default function ExerciseDetailScreen() {
     [id],
   );
   const [equipment, setEquipment] = useState<Equipment[] | null>(null);
+  // Which equipment's illustration is shown; follows the history filter.
+  const [shownEquipment, setShownEquipment] = useState<Equipment | null>(null);
 
   useEffect(() => {
     performedSets(id).then((rows) => setAllSets(rows.filter((r) => countsTowardStats(r.type))));
@@ -79,6 +83,7 @@ export default function ExerciseDetailScreen() {
   }, [sets]);
 
   if (!exercise) return null;
+  const illustrated = exercise.equipment.filter((e) => mediaEquipment(exercise.id).includes(e));
   const chart = perSession.slice(-10);
   const maxWeight = Math.max(...chart.map((c) => c.best.weight ?? 0), 0);
 
@@ -103,6 +108,25 @@ export default function ExerciseDetailScreen() {
           headerRight: exercise.isCustom ? () => <IconButton icon="delete-outline" onPress={confirmDelete} /> : undefined,
         }}
       />
+      {hasExerciseMedia(exercise.id) && (
+        <View style={styles.media}>
+          <ExerciseMedia exerciseId={exercise.id} equipment={shownEquipment ?? defaultEquipment(exercise)} size={240} animate />
+          {illustrated.length > 1 && (
+            <View style={styles.chips}>
+              {illustrated.map((e) => (
+                <Chip
+                  key={e}
+                  compact
+                  selected={(shownEquipment ?? defaultEquipment(exercise)) === e}
+                  showSelectedOverlay
+                  onPress={() => setShownEquipment(e)}>
+                  {equipmentLabel(e)}
+                </Chip>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
       <Text variant="bodyMedium">
         {exercise.category} · {MEASURE_LABEL[exercise.measure]}
       </Text>
@@ -147,7 +171,10 @@ export default function ExerciseDetailScreen() {
             Todos
           </Chip>
           {variants.map(([key, { equipment: used, machineId }]) => (
-            <Chip key={key} icon={machineId ? 'cog-outline' : undefined} selected={variantFilter === key} onPress={() => setVariantFilter(key)}>
+            <Chip key={key} icon={machineId ? 'cog-outline' : undefined} selected={variantFilter === key} onPress={() => {
+                setVariantFilter(key);
+                if (used) setShownEquipment(used);
+              }}>
               {machineId
                 ? (machineMap.get(machineId)?.name ?? 'Máquina')
                 : used && hasStation(used)
@@ -240,6 +267,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 12, paddingBottom: 48 },
+  media: { alignItems: 'center', gap: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stat: { flexBasis: '48%', flexGrow: 1 },

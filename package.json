@@ -62,7 +62,9 @@
     "lint": "expo lint",
     "test": "jest",
     "typecheck": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "media:fetch": "node scripts/fetch-exercise-media.mjs",
+    "postinstall": "node scripts/fetch-exercise-media.mjs"
   },
   "private": true,
   "jest": {

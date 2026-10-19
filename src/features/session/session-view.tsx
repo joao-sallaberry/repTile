@@ -2,10 +2,11 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, IconButton, Menu, Snackbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
+import { Button, Card, Dialog, IconButton, Menu, Portal, Snackbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
 import { DurationField } from '@/components/duration-field';
 import { EquipmentMenu } from '@/components/equipment-menu';
+import { ExerciseMedia, hasExerciseMedia } from '@/components/exercise-media';
 import { ExercisePicker } from '@/components/exercise-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
@@ -250,6 +251,7 @@ function ExerciseCard({
   const machineMap = useMachineMap();
   const [previous, setPrevious] = useState<PerformedSetRow[]>([]);
   const [machineOpen, setMachineOpen] = useState(false);
+  const [mediaOpen, setMediaOpen] = useState(false);
   const [typeFor, setTypeFor] = useState<SessionSet | null>(null);
   const { exerciseId, machineId, position, restSec } = sets[0];
   const equipment = sets[0].equipment ?? defaultEquipment(exercise);
@@ -289,6 +291,15 @@ function ExerciseCard({
   return (
     <Card mode="contained">
       <View style={styles.cardHeader}>
+        {hasExerciseMedia(exerciseId, equipment) && (
+          <TouchableRipple
+            onPress={() => setMediaOpen(true)}
+            accessibilityRole="imagebutton"
+            accessibilityLabel={`Ver como fazer ${exercise?.name ?? 'o exercício'}`}
+            style={styles.mediaThumb}>
+            <ExerciseMedia exerciseId={exerciseId} equipment={equipment} size={44} />
+          </TouchableRipple>
+        )}
         <View style={styles.flex}>
           <Text variant="titleMedium" style={{ color: theme.colors.primary }}>
             {exercise?.name ?? 'Exercício'}
@@ -384,6 +395,17 @@ function ExerciseCard({
         onDismiss={() => setMachineOpen(false)}
         onPick={(id) => setExerciseMachine(session.id, position, exerciseId, id)}
       />
+      <Portal>
+        <Dialog visible={mediaOpen} onDismiss={() => setMediaOpen(false)}>
+          <Dialog.Title>{exercise?.name}</Dialog.Title>
+          <Dialog.Content style={styles.mediaDialog}>
+            <ExerciseMedia exerciseId={exerciseId} equipment={equipment} size={260} animate />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setMediaOpen(false)}>Fechar</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
       {typeFor && (
         <SetTypeDialog
           visible
@@ -516,6 +538,8 @@ const styles = StyleSheet.create({
   content: { padding: 12, gap: 12, paddingBottom: 32 },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 14, paddingTop: 12, gap: 8 },
   machineThumb: { margin: 4, marginRight: 6 },
+  mediaThumb: { borderRadius: 6 },
+  mediaDialog: { alignItems: 'center' },
   machineChip: { alignSelf: 'flex-start', borderRadius: 8, minHeight: 32, justifyContent: 'center', marginLeft: -6 },
   restChip: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden', marginTop: 2 },
   tableHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, gap: 6 },

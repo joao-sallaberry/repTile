@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { Card, Chip, List, Switch, Text } from 'react-native-paper';
 
 import { useWeeklyGoal } from '@/features/home/goal';
@@ -54,6 +54,20 @@ export default function SettingsScreen() {
           left={(p) => <List.Icon {...p} icon="map-marker-outline" />}
           right={(p) => <List.Icon {...p} icon="chevron-right" />}
           onPress={() => router.push('/locations')}
+        />
+      </Card>
+
+      <Text variant="titleMedium" style={styles.section}>
+        Créditos
+      </Text>
+      <Card mode="contained">
+        {/* Required by the RepDB free-tier license (ADR 0016): keep this visible link. */}
+        <List.Item
+          title="Ilustrações dos exercícios"
+          description="Exercise data by RepDB (repdb.co)"
+          left={(p) => <List.Icon {...p} icon="image-outline" />}
+          right={(p) => <List.Icon {...p} icon="open-in-new" />}
+          onPress={() => Linking.openURL('https://repdb.co')}
         />
       </Card>
     </ScrollView>

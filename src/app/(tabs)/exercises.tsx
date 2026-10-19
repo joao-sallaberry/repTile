@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { SectionList, StyleSheet, View } from 'react-native';
 import { Appbar, Dialog, FAB, List, Portal, Searchbar, Text } from 'react-native-paper';
 
+import { ExerciseThumb } from '@/components/exercise-media';
 import { EquipmentFilter, matchesExercise, MEASURE_LABEL, NewExerciseForm } from '@/components/exercise-picker';
 import type { Equipment, Exercise } from '@/db/schema';
 import { equipmentText } from '@/features/workouts/equipment';
@@ -40,6 +41,7 @@ export default function ExercisesScreen() {
           <List.Item
             title={item.name}
             description={`${equipmentText(item)} · ${MEASURE_LABEL[item.measure]}`}
+            left={(p) => <ExerciseThumb exerciseId={item.id} equipment={item.equipment[0]} style={p.style} />}
             right={(p) => <List.Icon {...p} icon="chevron-right" />}
             onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: item.id } })}
           />

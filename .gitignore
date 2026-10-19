@@ -46,3 +46,7 @@ example
 *~
 \#*\#
 .\#*
+
+# RepDB exercise illustrations: downloaded on install, never committed (license, ADR 0016)
+/assets/exercise-media/
+/src/features/exercises/media.generated.ts

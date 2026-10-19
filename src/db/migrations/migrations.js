@@ -9,6 +9,7 @@ import m0006 from './0006_tabata_splits.sql';
 import m0007 from './0007_delete_orphan_sets.sql';
 import m0008 from './0008_cable_equipment.sql';
 import m0009 from './0009_multi_equipment.sql';
+import m0010 from './0010_merge_exercises.sql';
 
   export default {
     journal,
@@ -22,7 +23,8 @@ m0005,
 m0006,
 m0007,
 m0008,
-m0009
+m0009,
+m0010
     }
   }
   
