@@ -15,7 +15,7 @@
   "seed-leg-extension": {"machine": "leg-extension"},
   "seed-leg-curl": {"machine": "leg-curl"},
   "seed-romanian-deadlift": {"barbell": "stiff-leg-deadlift"},
-  "seed-lunge": {"dumbbell": "db-lunge", "barbell": "barbell-lunge"},
+  "seed-lunge": {"dumbbell": "db-lunge", "barbell": "barbell-lunge", "none": "lunge"},
   "seed-calf-raise": {"machine": "standing-calf-raise"},
   "seed-hip-thrust": {"barbell": "hip-thrust"},
   "seed-overhead-press": {"barbell": "ohp", "dumbbell": "dumbbell-shoulder-press", "machine": "machine-shoulder-press"},

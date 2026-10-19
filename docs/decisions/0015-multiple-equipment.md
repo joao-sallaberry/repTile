@@ -1,6 +1,6 @@
 # 0015. Exercises list several equipment; the one used is recorded per set
 
-- **Status:** Accepted
+- **Status:** Partly superseded by [0017](0017-livre-equipment.md)
 - **Date:** 2026-10-18
 - **Supersedes:** the "one equipment per exercise" part of [0011](0011-exercise-equipment.md)
 

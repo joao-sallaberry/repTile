@@ -4,15 +4,16 @@ import { equipmentText, matchesEquipment, toggleEquipment } from './equipment';
 
 test('equipmentText lists every equipment', () => {
   expect(equipmentText({ equipment: ['barbell', 'dumbbell', 'cable'] })).toBe('Barra, halter, polia');
-  expect(equipmentText({ equipment: ['none'] })).toBe('Sem equipamento');
+  expect(equipmentText({ equipment: ['none'] })).toBe('Livre');
+  expect(equipmentText({ equipment: ['none', 'dumbbell'] })).toBe('Livre, halter');
 });
 
-test('toggleEquipment keeps the list non-empty and "none" exclusive', () => {
+test('toggleEquipment keeps the list non-empty', () => {
   expect(toggleEquipment(['barbell'], 'dumbbell')).toEqual(['barbell', 'dumbbell']);
   expect(toggleEquipment(['barbell', 'dumbbell'], 'barbell')).toEqual(['dumbbell']);
   expect(toggleEquipment(['barbell'], 'barbell')).toEqual(['barbell']);
-  expect(toggleEquipment(['barbell', 'dumbbell'], 'none')).toEqual(['none']);
-  expect(toggleEquipment(['none'], 'band')).toEqual(['band']);
+  expect(toggleEquipment(['barbell', 'dumbbell'], 'none')).toEqual(['barbell', 'dumbbell', 'none']);
+  expect(toggleEquipment(['none'], 'band')).toEqual(['none', 'band']);
 });
 
 test('matchesEquipment: any picked equipment', () => {

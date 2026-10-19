@@ -23,7 +23,7 @@ export const MEASURE_LABEL: Record<Measure, string> = {
   calories: 'Calorias',
 };
 
-/** One chip per equipment; several can be picked, and "Nenhum" excludes the others (`toggleEquipment`). */
+/** One chip per equipment; several can be picked (`toggleEquipment`), "Livre" included. */
 export function EquipmentChips({ value, onChange }: { value: Equipment[]; onChange: (e: Equipment[]) => void }) {
   return (
     <View style={styles.chips}>

@@ -32,5 +32,6 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0012 | [Tabata blocks and per-round tracking](0012-tabata-and-round-tracking.md)    | Accepted | 2026-10-17 |
 | 0013 | [Use expo-dev-client for development over Wi-Fi](0013-expo-dev-client.md)  | Accepted | 2026-10-17 |
 | 0014 | [Cable (Polia) equipment uses stations like machines](0014-cable-equipment.md) | Accepted | 2026-10-18 |
-| 0015 | [Exercises list several equipment; the one used is recorded per set](0015-multiple-equipment.md) | Accepted | 2026-10-18 |
+| 0015 | [Exercises list several equipment; the one used is recorded per set](0015-multiple-equipment.md) | Partly superseded by 0017 | 2026-10-18 |
 | 0016 | [Exercise illustrations from RepDB, downloaded on install](0016-exercise-illustrations.md) | Accepted | 2026-10-18 |
+| 0017 | ["Livre" (bodyweight) is one more equipment option](0017-livre-equipment.md) | Accepted | 2026-10-19 |

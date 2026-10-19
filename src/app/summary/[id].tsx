@@ -274,7 +274,7 @@ function ExerciseRow({
   const ex = exerciseMap.get(group[0].exerciseId);
   const machine = group[0].machineId ? machineMap.get(group[0].machineId) : undefined;
   const used = group[0].equipment ?? defaultEquipment(ex);
-  const tool = machine?.name ?? (used !== 'none' ? equipmentLabel(used) : null);
+  const tool = machine?.name ?? (used !== 'none' || (ex?.equipment.length ?? 0) > 1 ? equipmentLabel(used) : null);
   const working = group.filter((s) => countsTowardStats(s.type));
   const best = bestSet(working.length ? working : group);
   const { volume } = summarizeSets(group);
