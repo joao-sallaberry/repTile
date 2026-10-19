@@ -19,7 +19,10 @@ const syncColumns = {
 export const MEASURES = ['weight_reps', 'reps', 'time', 'distance', 'calories'] as const;
 export type Measure = (typeof MEASURES)[number];
 
-/** What an exercise is done with. `machine` and `cable` exercises get a specific station (a `machines` row) picked in routines and sessions. */
+/**
+ * What an exercise is done with. An exercise lists every equipment it can be done with (ADR 0015); routine
+ * items and session sets record the one used. `machine` and `cable` get a specific station (a `machines` row).
+ */
 export const EQUIPMENT = ['none', 'barbell', 'band', 'dumbbell', 'suspension', 'kettlebell', 'cable', 'machine', 'other'] as const;
 export type Equipment = (typeof EQUIPMENT)[number];
 
@@ -82,7 +85,8 @@ export const exercises = sqliteTable('exercises', {
   name: text('name').notNull(),
   category: text('category').notNull(),
   measure: text('measure', { enum: MEASURES }).notNull(),
-  equipment: text('equipment', { enum: EQUIPMENT }).notNull().default('none'),
+  /** Equipment it can be done with, never empty; the first one is the default. */
+  equipment: text('equipment', { mode: 'json' }).$type<Equipment[]>().notNull().default(['none']),
   isCustom: integer('is_custom', { mode: 'boolean' }).notNull().default(false),
 });
 
@@ -135,6 +139,8 @@ export const workoutItems = sqliteTable(
     position: integer('position').notNull(),
     /** Exercises blocks: number of sets (mirrors the rows in `workout_item_sets`). */
     sets: integer('sets'),
+    /** Equipment used, one of the exercise's (always set; nullable only for the migration). */
+    equipment: text('equipment', { enum: EQUIPMENT }),
     machineId: text('machine_id'),
     reps: integer('reps'),
     weight: real('weight'),
@@ -217,6 +223,8 @@ export const sessionSets = sqliteTable(
     position: integer('position').notNull(),
     setIndex: integer('set_index').notNull(),
     type: text('type', { enum: SET_TYPES }).notNull().default('normal'),
+    /** Equipment used, one of the exercise's (always set; nullable only for the migration). */
+    equipment: text('equipment', { enum: EQUIPMENT }),
     machineId: text('machine_id'),
     reps: integer('reps'),
     weight: real('weight'),
@@ -225,7 +233,7 @@ export const sessionSets = sqliteTable(
     calories: integer('calories'),
     restSec: integer('rest_sec'),
     completedAt: integer('completed_at'),
-    /** The set was a personal record when it was completed (same exercise + machine, warm-ups excluded). */
+    /** The set was a personal record when it was completed (same exercise + equipment + machine, warm-ups excluded). */
     isPr: integer('is_pr', { mode: 'boolean' }).notNull().default(false),
   },
   (t) => [

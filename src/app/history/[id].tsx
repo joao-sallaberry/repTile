@@ -12,6 +12,7 @@ import { deleteSession } from '@/features/session/repo';
 import { countsTowardStats, setLabels } from '@/features/session/sets';
 import { BLOCK_KIND_ICON, describeBlockFormat, isWod } from '@/features/workouts/blocks';
 import { describeItem, describeResult, describeRounds } from '@/features/workouts/describe';
+import { defaultEquipment, equipmentLabel } from '@/features/workouts/equipment';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDate, formatDuration, formatWeight } from '@/lib/format';
 
@@ -127,7 +128,13 @@ export default function SessionDetailScreen() {
             <Card key={list[0].id} mode="outlined">
               <Card.Title
                 title={ex?.name ?? '—'}
-                subtitle={machine ? `⚙ ${machine.name}` : undefined}
+                subtitle={
+                  machine
+                    ? `⚙ ${machine.name}`
+                    : ex && ex.equipment.length > 1
+                      ? equipmentLabel(list[0].equipment ?? defaultEquipment(ex))
+                      : undefined
+                }
                 right={(p) => (
                   <IconButton
                     {...p}

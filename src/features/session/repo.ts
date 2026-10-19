@@ -2,18 +2,22 @@ import { and, asc, desc, eq, gt, isNotNull, isNull, max, ne, sql } from 'drizzle
 
 import { db } from '@/db/client';
 import {
+  exercises,
   sessionBlocks,
   sessions,
   sessionSets,
   workoutBlocks,
   type BlockKind,
+  type Equipment,
   type SessionSet,
   type SetType,
 } from '@/db/schema';
 import { linkMachineToExercise, linkMachineToLocation } from '@/features/places/repo';
 import { isNewPR, isWodPR, type PerformedSet } from '@/features/stats/prs';
 import { cleanBlockConfig, defaultBlockConfig, isWod, type BlockConfig } from '@/features/workouts/blocks';
+import { defaultEquipment, hasStation } from '@/features/workouts/equipment';
 import {
+  defaultEquipmentOf,
   emptyBlock,
   getWorkoutDraft,
   newSet,
@@ -25,15 +29,21 @@ import { createdFields, touched } from '@/lib/ids';
 
 import { countsTowardStats, pairPrevious } from './sets';
 
-export type PerformedSetRow = PerformedSet & { type: SetType; machineId: string | null; setIndex: number };
+export type PerformedSetRow = PerformedSet & {
+  type: SetType;
+  equipment: Equipment | null;
+  machineId: string | null;
+  setIndex: number;
+};
 
 /**
  * Completed sets of an exercise in exercises blocks (not WODs), oldest first.
+ * `equipment`: `undefined` = any equipment.
  * `machineId`: `undefined` = any machine; `null` = only sets done without a machine.
  */
 export async function performedSets(
   exerciseId: string,
-  opts: { machineId?: string | null; excludeSessionId?: string } = {},
+  opts: { equipment?: Equipment; machineId?: string | null; excludeSessionId?: string } = {},
 ): Promise<PerformedSetRow[]> {
   const rows = await db
     .select({
@@ -42,6 +52,7 @@ export async function performedSets(
       weight: sessionSets.weight,
       reps: sessionSets.reps,
       type: sessionSets.type,
+      equipment: sessionSets.equipment,
       machineId: sessionSets.machineId,
       setIndex: sessionSets.setIndex,
     })
@@ -55,6 +66,7 @@ export async function performedSets(
         isNull(sessionSets.deletedAt),
         isNull(sessions.deletedAt),
         eq(sessionBlocks.kind, 'exercises'),
+        opts.equipment === undefined ? undefined : eq(sessionSets.equipment, opts.equipment),
         opts.machineId === undefined
           ? undefined
           : opts.machineId === null
@@ -68,13 +80,14 @@ export async function performedSets(
     .map((r) => ({ ...r, completedAt: r.completedAt ?? 0 }));
 }
 
-/** Sets of the most recent other session with this exercise on this machine, in set order. */
+/** Sets of the most recent other session with this exercise, equipment and machine, in set order. */
 export async function previousSessionSets(
   exerciseId: string,
+  equipment: Equipment,
   machineId: string | null,
   excludeSessionId?: string,
 ): Promise<PerformedSetRow[]> {
-  const all = await performedSets(exerciseId, { machineId, excludeSessionId });
+  const all = await performedSets(exerciseId, { equipment, machineId, excludeSessionId });
   const last = all.at(-1);
   if (!last) return [];
   return all.filter((r) => r.sessionId === last.sessionId).sort((a, b) => a.setIndex - b.setIndex);
@@ -88,13 +101,15 @@ const configOf = (b: BlockConfig): BlockConfig => {
 export async function startSession(workoutId: string, fallbackLocationId: string | null = null): Promise<string> {
   const w = await getWorkoutDraft(workoutId);
   if (!w) throw new Error('Treino não encontrado');
+  const defaults = await defaultEquipmentOf(w.blocks.flatMap((b) => b.items.map((i) => i.exerciseId)));
+  const equipmentOf = (item: WorkoutItemDraft) => item.equipment ?? defaults.get(item.exerciseId) ?? 'none';
 
-  // Pre-fill each set from the routine target, else from the same set last time on the same machine.
+  // Pre-fill each set from the routine target, else from the same set last time with the same equipment and machine.
   const previous = await Promise.all(
     w.blocks.map((b) =>
       Promise.all(
         b.items.map((item) =>
-          b.kind === 'exercises' ? previousSessionSets(item.exerciseId, item.machineId) : Promise.resolve([]),
+          b.kind === 'exercises' ? previousSessionSets(item.exerciseId, equipmentOf(item), item.machineId) : Promise.resolve([]),
         ),
       ),
     ),
@@ -130,6 +145,7 @@ export async function startSession(workoutId: string, fallbackLocationId: string
           sessionId: session.id,
           sessionBlockId: sessionBlock.id,
           exerciseId: item.exerciseId,
+          equipment: equipmentOf(item),
           machineId: item.machineId,
           position: position++,
           restSec: item.restSec,
@@ -226,6 +242,7 @@ export async function saveSessionAsRoutine(sessionId: string, name: string): Pro
       if (!item) {
         item = {
           exerciseId: r.exerciseId,
+          equipment: r.equipment,
           machineId: r.machineId,
           sets: [],
           // WOD movements keep their per-round amounts on the item.
@@ -275,10 +292,14 @@ export async function updateSet(id: string, values: SetValues) {
   await refreshSetPr(id);
 }
 
-/** Whether a completed set beats the earlier sessions on the same exercise and machine. */
+/** Whether a completed set beats the earlier sessions on the same exercise, equipment and machine. */
 async function isSetPr(set: SessionSet, completedAt: number): Promise<boolean> {
   if (!countsTowardStats(set.type)) return false;
-  const previous = await performedSets(set.exerciseId, { machineId: set.machineId, excludeSessionId: set.sessionId });
+  const previous = await performedSets(set.exerciseId, {
+    equipment: set.equipment ?? undefined,
+    machineId: set.machineId,
+    excludeSessionId: set.sessionId,
+  });
   return isNewPR(
     previous.filter((p) => countsTowardStats(p.type)),
     { ...set, completedAt },
@@ -293,7 +314,7 @@ async function refreshSetPr(id: string) {
   if (isPr !== set.isPr) await db.update(sessionSets).set({ isPr, ...touched() }).where(eq(sessionSets.id, id));
 }
 
-/** Marks the set as done. Returns `true` if it is a new personal record (same machine, warm-ups excluded). */
+/** Marks the set as done. Returns `true` if it is a new personal record (same equipment and machine, warm-ups excluded). */
 export async function completeSet(set: SessionSet): Promise<boolean> {
   const completedAt = Date.now();
   const isPr = await isSetPr(set, completedAt);
@@ -316,6 +337,17 @@ export async function setExerciseMachine(sessionId: string, position: number, ex
   await linkMachineToExercise(machineId, exerciseId);
   const s = await db.query.sessions.findFirst({ where: eq(sessions.id, sessionId) });
   if (s?.locationId) await linkMachineToLocation(machineId, s.locationId);
+}
+
+/**
+ * Sets the equipment for every set of an exercise in the session (one of the exercise's).
+ * The machine is cleared when the new equipment has no station.
+ */
+export async function setExerciseEquipment(sessionId: string, position: number, equipment: Equipment) {
+  await db
+    .update(sessionSets)
+    .set({ equipment, ...(hasStation(equipment) ? {} : { machineId: null }), ...touched() })
+    .where(and(eq(sessionSets.sessionId, sessionId), eq(sessionSets.position, position), isNull(sessionSets.deletedAt)));
 }
 
 export async function setSessionLocation(sessionId: string, locationId: string | null) {
@@ -357,6 +389,7 @@ export async function addSet(sessionId: string, position: number, type: SetType 
     // Same block as the exercise's other sets: the session screen lists sets per block.
     sessionBlockId: last.sessionBlockId,
     exerciseId: last.exerciseId,
+    equipment: last.equipment,
     machineId: last.machineId,
     position,
     setIndex: insertAfter + 1,
@@ -378,17 +411,22 @@ export async function addExerciseToSession(sessionId: string, sessionBlockId: st
     .from(sessionSets)
     .where(eq(sessionSets.sessionId, sessionId));
   const wod = block ? isWod(block.kind) : false;
+  // Same equipment as last time, else the exercise's default.
+  const exercise = await db.query.exercises.findFirst({ where: eq(exercises.id, exerciseId) });
+  const lastUsed = (await performedSets(exerciseId)).at(-1)?.equipment;
+  const equipment = lastUsed && exercise?.equipment.includes(lastUsed) ? lastUsed : defaultEquipment(exercise);
   await db.insert(sessionSets).values({
     ...createdFields(),
     sessionId,
     sessionBlockId,
     exerciseId,
+    equipment,
     position: (maxPos ?? -1) + 1,
     setIndex: 0,
     reps: 10,
     weight: wod
       ? null
-      : ((await previousSessionSets(exerciseId, null)).find((p) => countsTowardStats(p.type))?.weight ?? 0),
+      : ((await previousSessionSets(exerciseId, equipment, null)).find((p) => countsTowardStats(p.type))?.weight ?? 0),
     restSec: wod ? null : 90,
   });
 }
@@ -509,7 +547,7 @@ export async function deleteSession(id: string) {
 /**
  * "Atualizar rotina com estes valores": the routine's targets become what was done in this session.
  * Exercises blocks: each routine item takes the completed sets (type, reps, load, machine) of the same exercise
- * in the matching session block; WOD blocks: each movement takes its reps and load. Items not done, and exercises
+ * in the matching session block (and its equipment); WOD blocks: each movement takes its reps and load. Items not done, and exercises
  * added during the session, are left as they are. Returns how many items changed.
  */
 export async function updateRoutineFromSession(sessionId: string): Promise<number> {
@@ -552,7 +590,8 @@ export async function updateRoutineFromSession(sessionId: string): Promise<numbe
           distanceM: s.distanceM,
           calories: s.calories,
         }));
-        item.machineId = done[0].machineId ?? item.machineId;
+        item.equipment = done[0].equipment ?? item.equipment;
+        item.machineId = hasStation(item.equipment) ? (done[0].machineId ?? item.machineId) : null;
       } else {
         const m = group[0];
         item.reps = m.reps;

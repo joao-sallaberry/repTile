@@ -5,6 +5,13 @@ import { Button, Chip, Dialog, List, Portal, SegmentedButtons, Searchbar, Text, 
 
 import { EQUIPMENT, MEASURES, type Equipment, type Exercise, type Measure } from '@/db/schema';
 import { useExercises } from '@/features/workouts/queries';
+import {
+  EQUIPMENT_LABEL,
+  equipmentLabel,
+  equipmentText,
+  matchesEquipment,
+  toggleEquipment,
+} from '@/features/workouts/equipment';
 import { createExercise } from '@/features/workouts/repo';
 
 export const MEASURE_LABEL: Record<Measure, string> = {
@@ -15,34 +22,12 @@ export const MEASURE_LABEL: Record<Measure, string> = {
   calories: 'Calorias',
 };
 
-export const EQUIPMENT_LABEL: Record<Equipment, string> = {
-  none: 'Nenhum',
-  barbell: 'Barra',
-  band: 'Elástico',
-  dumbbell: 'Halter',
-  suspension: 'Fita de suspensão',
-  kettlebell: 'Kettlebell',
-  cable: 'Polia',
-  machine: 'Máquina',
-  other: 'Outro',
-};
-
-/** "Barra", or "Sem equipamento" for bodyweight exercises. */
-export const equipmentText = (e: Pick<Exercise, 'equipment'>) =>
-  e.equipment === 'none' ? 'Sem equipamento' : EQUIPMENT_LABEL[e.equipment];
-
-/** Machine and cable exercises are done on a specific station, picked with `MachinePicker`. */
-export const hasStation = (equipment: Equipment | undefined) => equipment === 'machine' || equipment === 'cable';
-
-/** What the station is called in the UI: "polia" for cable exercises, else "máquina". */
-export const stationNoun = (equipment: Equipment | undefined) => (equipment === 'cable' ? 'polia' : 'máquina');
-
-/** One chip per equipment, single choice. */
-export function EquipmentChips({ value, onChange }: { value: Equipment; onChange: (e: Equipment) => void }) {
+/** One chip per equipment; several can be picked, and "Nenhum" excludes the others (`toggleEquipment`). */
+export function EquipmentChips({ value, onChange }: { value: Equipment[]; onChange: (e: Equipment[]) => void }) {
   return (
     <View style={styles.chips}>
       {EQUIPMENT.map((e) => (
-        <Chip key={e} compact selected={value === e} showSelectedOverlay onPress={() => onChange(e)}>
+        <Chip key={e} compact selected={value.includes(e)} showSelectedOverlay onPress={() => onChange(toggleEquipment(value, e))}>
           {EQUIPMENT_LABEL[e]}
         </Chip>
       ))}
@@ -65,7 +50,7 @@ export function EquipmentFilter({
   onChange: (v: Equipment[]) => void;
   style?: ViewStyle;
 }) {
-  const used = EQUIPMENT.filter((e) => value.includes(e) || exercises.some((x) => x.equipment === e));
+  const used = EQUIPMENT.filter((e) => value.includes(e) || exercises.some((x) => x.equipment.includes(e)));
   if (used.length < 2) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={[styles.filter, style]}>
@@ -78,7 +63,7 @@ export function EquipmentFilter({
           selected={value.includes(e)}
           showSelectedOverlay
           onPress={() => onChange(value.includes(e) ? value.filter((v) => v !== e) : [...value, e])}>
-          {e === 'none' ? 'Sem equipamento' : EQUIPMENT_LABEL[e]}
+          {equipmentLabel(e)}
         </Chip>
       ))}
     </ScrollView>
@@ -87,7 +72,7 @@ export function EquipmentFilter({
 
 /** Search text + equipment filter. */
 export function matchesExercise(e: Exercise, query: string, equipment: Equipment[]) {
-  if (equipment.length && !equipment.includes(e.equipment)) return false;
+  if (!matchesEquipment(e, equipment)) return false;
   const q = normalize(query);
   return !q || normalize(`${e.name} ${e.category}`).includes(q);
 }
@@ -170,7 +155,7 @@ export function NewExerciseForm({
   const [name, setName] = useState(initialName);
   const [category, setCategory] = useState('');
   const [measure, setMeasure] = useState<Measure>('weight_reps');
-  const [equipment, setEquipment] = useState<Equipment>('none');
+  const [equipment, setEquipment] = useState<Equipment[]>(['none']);
 
   return (
     <>

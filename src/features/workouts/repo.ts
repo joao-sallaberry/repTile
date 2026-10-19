@@ -15,6 +15,7 @@ import {
 import { createdFields, touched } from '@/lib/ids';
 
 import { cleanBlockConfig, defaultBlockConfig, type BlockConfig } from './blocks';
+import { defaultEquipment } from './equipment';
 
 /** Exercises blocks: the target of one set. */
 export type SetDraft = {
@@ -31,6 +32,8 @@ export type WorkoutItemDraft = {
   /** Present when the item already exists in the database. */
   id?: string;
   exerciseId: string;
+  /** Equipment used, one of the exercise's; `null` = the exercise's default (resolved when saving). */
+  equipment: Equipment | null;
   machineId: string | null;
   /** Exercises blocks: one entry per set (weight and reps may vary). Empty in WOD blocks. */
   sets: SetDraft[];
@@ -66,8 +69,9 @@ export const newSet = (type: SetType = 'normal', from?: Partial<SetDraft>): SetD
   calories: from?.calories ?? null,
 });
 
-export const emptyItem = (exerciseId: string, kind: BlockKind): WorkoutItemDraft => ({
+export const emptyItem = (exerciseId: string, kind: BlockKind, equipment: Equipment | null = null): WorkoutItemDraft => ({
   exerciseId,
+  equipment,
   machineId: null,
   sets: kind === 'exercises' ? [newSet(), newSet(), newSet()] : [],
   reps: 10,
@@ -121,6 +125,7 @@ export async function getWorkoutDraft(id: string): Promise<WorkoutDraft | null> 
       items: b.items.map((i) => ({
         id: i.id,
         exerciseId: i.exerciseId,
+        equipment: i.equipment,
         machineId: i.machineId,
         sets:
           b.kind !== 'exercises'
@@ -148,6 +153,16 @@ export async function getWorkoutDraft(id: string): Promise<WorkoutDraft | null> 
   };
 }
 
+/** Each exercise's default equipment (the first of its list). */
+export async function defaultEquipmentOf(exerciseIds: string[]): Promise<Map<string, Equipment>> {
+  if (!exerciseIds.length) return new Map();
+  const rows = await db
+    .select({ id: exercises.id, equipment: exercises.equipment })
+    .from(exercises)
+    .where(inArray(exercises.id, [...new Set(exerciseIds)]));
+  return new Map(rows.map((r) => [r.id, defaultEquipment(r)]));
+}
+
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** Soft-deletes rows of `table` with the given ids. */
@@ -158,6 +173,7 @@ async function softDelete(tx: Tx, table: typeof workoutBlocks | typeof workoutIt
 /** Creates or updates a workout, replacing its blocks and their items. Returns the ID. */
 export async function saveWorkout(id: string | null, draft: WorkoutDraft): Promise<string> {
   const { blocks, ...fields } = draft;
+  const defaults = await defaultEquipmentOf(blocks.flatMap((b) => b.items.map((i) => i.exerciseId)));
   return db.transaction(async (tx) => {
     let workoutId = id;
     if (workoutId) {
@@ -194,7 +210,14 @@ export async function saveWorkout(id: string | null, draft: WorkoutDraft): Promi
 
       for (const [position, { id: existingId, sets, ...item }] of items.entries()) {
         const plain = block.kind === 'exercises';
-        const values = { ...item, blockId, position, sets: plain ? sets.length : null, restSec: plain ? item.restSec : null };
+        const values = {
+          ...item,
+          equipment: item.equipment ?? defaults.get(item.exerciseId) ?? 'none',
+          blockId,
+          position,
+          sets: plain ? sets.length : null,
+          restSec: plain ? item.restSec : null,
+        };
         let itemId = existingId;
         if (itemId) {
           await tx.update(workoutItems).set({ ...values, ...touched() }).where(eq(workoutItems.id, itemId));
@@ -260,13 +283,13 @@ export async function deleteWorkout(id: string) {
   });
 }
 
-export async function createExercise(input: { name: string; category: string; measure: Measure; equipment: Equipment }) {
+export async function createExercise(input: { name: string; category: string; measure: Measure; equipment: Equipment[] }) {
   const row = { ...createdFields(), ...input, isCustom: true };
   await db.insert(exercises).values(row);
   return row.id;
 }
 
-export async function updateExercise(id: string, patch: { equipment: Equipment }) {
+export async function updateExercise(id: string, patch: { equipment: Equipment[] }) {
   await db.update(exercises).set({ ...patch, ...touched() }).where(eq(exercises.id, id));
 }
 

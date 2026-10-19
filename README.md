@@ -5,7 +5,7 @@ Android app (React Native + Expo) to plan and run gym and CrossFit workouts.
 - **Home**: this week's trained days (Monday to Sunday) against an optional weekly goal, the next routine in your rotation, a "Treino livre" (empty workout, can be saved as a routine at the end), your routines with one-tap start, recent PRs and the last workouts. First use offers ready-made templates (ABC, Full body, Fran, Cindy).
 - **Blocks**: a workout is a list of blocks — plain exercises and timed WOD blocks (AMRAP, EMOM — also alternating, one movement per interval —, For Time and Tabata) in any mix, done in any order. Blocks can also be added during a workout.
 - **Exercises** (Hevy-style set log): warm-up, normal, drop and to-failure sets, each with its own weight and reps; a "Previous" column with what you did last time; automatic rest timer between sets (warm-ups can skip it, in Ajustes). Start and end times can be adjusted when finishing.
-- **Equipment**: each exercise has one equipment (none, barbell, band, dumbbell, suspension trainer, kettlebell, cable, machine, other), editable on its screen; exercise lists can be filtered by equipment.
+- **Equipment**: each exercise lists the equipment it can be done with (none, barbell, band, dumbbell, suspension trainer, kettlebell, cable, machine, other), editable on its screen; exercise lists can be filtered by equipment. When there are several (e.g. a curl with barbell, dumbbells or cable), routines and sessions pick the one used, and "Anterior" and PRs are kept per equipment.
 - **Locations and machines**: a workout can belong to a gym or box; a machine or cable exercise can be done on a specific machine or cable station. Machines are optional, can be shared by several locations, and keep their own load history and PRs. Each machine can have a low-res photo (camera or gallery) to recognise it at the gym: open the machine from the machine picker in a workout (camera button), from the exercise's screen ("Máquinas") or from its location.
 - **WOD blocks**: a full-screen timer per format with lead-in countdown — EMOM dial with current/next movement and "Pular", AMRAP round counter with pace, For Time rounds with splits, Tabata with work/rest colors and reps per round — and a result per block with PRs.
 - **Notifications**: alerts when a rest or WOD ends, even with the screen off or the app killed. The needed permissions are asked on a welcome screen at first launch and can be reviewed in Settings.
@@ -46,7 +46,7 @@ USB is only needed to install a new dev build, after a native change (new native
 Other commands:
 
 ```sh
-npm test            # tests (timer, PRs, set labels/pairing)
+npm test            # tests (timer, PRs, set labels/pairing, equipment)
 npm run typecheck   # TypeScript
 npm run lint        # ESLint
 npm run db:generate # generate a migration after changing src/db/schema.ts
@@ -94,7 +94,7 @@ src/features/home/       # home screen sections, week stats and the weekly goal
 src/features/session/    # running workouts (exercise blocks and WOD blocks)
 src/features/stats/      # PR calculations
 src/features/places/     # locations, machines (and their photos) and the current location
-src/features/workouts/   # workout editing
+src/features/workouts/   # workout editing and exercise equipment
 plugins/                 # config plugins (notification sounds)
 assets/icon/             # mascot art + script that renders the app icons
 docs/decisions/          # design decisions (ADRs)

@@ -5,7 +5,8 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, IconButton, Menu, Snackbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
 import { DurationField } from '@/components/duration-field';
-import { equipmentText, ExercisePicker, hasStation, stationNoun } from '@/components/exercise-picker';
+import { EquipmentMenu } from '@/components/equipment-menu';
+import { ExercisePicker } from '@/components/exercise-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
 import { MachineThumb } from '@/components/machine-thumb';
@@ -19,6 +20,7 @@ import { useLocation, useMachineMap } from '@/features/places/queries';
 import { startTimer } from '@/features/timer/start';
 import { useTimerStore } from '@/features/timer/store';
 import { BLOCK_KIND_ICON, BLOCK_KIND_LABEL } from '@/features/workouts/blocks';
+import { defaultEquipment, equipmentText, hasStation, stationNoun } from '@/features/workouts/equipment';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDuration, formatWeight } from '@/lib/format';
 
@@ -32,6 +34,7 @@ import {
   previousSessionSets,
   removeExercise,
   removeSet,
+  setExerciseEquipment,
   setExerciseMachine,
   setSessionLocation,
   setSetType,
@@ -249,13 +252,15 @@ function ExerciseCard({
   const [machineOpen, setMachineOpen] = useState(false);
   const [typeFor, setTypeFor] = useState<SessionSet | null>(null);
   const { exerciseId, machineId, position, restSec } = sets[0];
+  const equipment = sets[0].equipment ?? defaultEquipment(exercise);
+  const choices = exercise?.equipment ?? [];
   const machine = machineId ? machineMap.get(machineId) : undefined;
-  const noun = stationNoun(exercise?.equipment);
+  const noun = stationNoun(equipment);
   const measure = exercise?.measure ?? 'weight_reps';
 
   useEffect(() => {
-    previousSessionSets(exerciseId, machineId, session.id).then(setPrevious);
-  }, [exerciseId, machineId, session.id]);
+    previousSessionSets(exerciseId, equipment, machineId, session.id).then(setPrevious);
+  }, [exerciseId, equipment, machineId, session.id]);
 
   const labels = setLabels(sets.map((s) => s.type));
   const paired = pairPrevious(sets, previous);
@@ -288,28 +293,38 @@ function ExerciseCard({
           <Text variant="titleMedium" style={{ color: theme.colors.primary }}>
             {exercise?.name ?? 'Exercício'}
           </Text>
-          {exercise && !hasStation(exercise.equipment) && !machine ? (
-            <Text variant="bodySmall" style={styles.muted}>
-              {equipmentText(exercise)}
-            </Text>
-          ) : (
-            <TouchableRipple
-              onPress={() => setMachineOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel={machine ? `${machine.name}. Toque para trocar` : `Associar uma ${noun}`}
-              style={styles.machineChip}>
-              <View style={styles.row}>
-                {machine?.photo ? (
-                  <MachineThumb photo={machine.photo} size={28} style={styles.machineThumb} />
-                ) : (
-                  <IconButton icon="cog-outline" size={14} style={styles.noMargin} />
-                )}
+          <View style={styles.row}>
+            {/* Several equipment: pick the one used. One: just say what it is (unless it has a station). */}
+            {choices.length > 1 ? (
+              <EquipmentMenu options={choices} value={equipment} onChange={(e) => setExerciseEquipment(session.id, position, e)} />
+            ) : (
+              exercise &&
+              !hasStation(equipment) &&
+              !machine && (
                 <Text variant="bodySmall" style={styles.muted}>
-                  {machine?.name ?? `Sem ${noun} · escolher`}
+                  {equipmentText(exercise)}
                 </Text>
-              </View>
-            </TouchableRipple>
-          )}
+              )
+            )}
+            {(hasStation(equipment) || machine) && (
+              <TouchableRipple
+                onPress={() => setMachineOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={machine ? `${machine.name}. Toque para trocar` : `Associar uma ${noun}`}
+                style={styles.machineChip}>
+                <View style={styles.row}>
+                  {machine?.photo ? (
+                    <MachineThumb photo={machine.photo} size={28} style={styles.machineThumb} />
+                  ) : (
+                    <IconButton icon="cog-outline" size={14} style={styles.noMargin} />
+                  )}
+                  <Text variant="bodySmall" style={styles.muted}>
+                    {machine?.name ?? `Sem ${noun} · escolher`}
+                  </Text>
+                </View>
+              </TouchableRipple>
+            )}
+          </View>
         </View>
         {restSec ? (
           <Text variant="labelMedium" style={[styles.restChip, { backgroundColor: theme.colors.secondaryContainer }]}>

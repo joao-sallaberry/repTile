@@ -64,6 +64,13 @@
       "when": 1792297071605,
       "tag": "0008_cable_equipment",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792372320427,
+      "tag": "0009_multi_equipment",
+      "breakpoints": true
     }
   ]
 }

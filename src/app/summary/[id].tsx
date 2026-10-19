@@ -6,7 +6,6 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Divider, Icon, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { equipmentText } from '@/components/exercise-picker';
 import { db } from '@/db/client';
 import { sessionBlocks, sessions, sessionSets, type SessionSet } from '@/db/schema';
 import { formatMinutes, formatVolume, summarizeSets } from '@/features/home/stats';
@@ -16,6 +15,7 @@ import { countsTowardStats } from '@/features/session/sets';
 import { bestSet, describeSet, describeSetCounts, loadSessionRecords, type SessionRecord } from '@/features/session/summary';
 import { BLOCK_KIND_ICON, describeBlockFormat, isWod } from '@/features/workouts/blocks';
 import { describeResult, describeRounds } from '@/features/workouts/describe';
+import { defaultEquipment, equipmentLabel } from '@/features/workouts/equipment';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDate } from '@/lib/format';
 
@@ -273,7 +273,8 @@ function ExerciseRow({
   const theme = useTheme();
   const ex = exerciseMap.get(group[0].exerciseId);
   const machine = group[0].machineId ? machineMap.get(group[0].machineId) : undefined;
-  const tool = machine?.name ?? (ex && ex.equipment !== 'none' ? equipmentText(ex) : null);
+  const used = group[0].equipment ?? defaultEquipment(ex);
+  const tool = machine?.name ?? (used !== 'none' ? equipmentLabel(used) : null);
   const working = group.filter((s) => countsTowardStats(s.type));
   const best = bestSet(working.length ? working : group);
   const { volume } = summarizeSets(group);

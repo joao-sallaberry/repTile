@@ -12,6 +12,7 @@ import { beginRoutine } from '@/features/session/begin';
 import { compareWodResults } from '@/features/stats/prs';
 import { BLOCK_KIND_ICON, describeBlockFormat, isWod } from '@/features/workouts/blocks';
 import { describeItem, describeResult, describeTargets } from '@/features/workouts/describe';
+import { equipmentLabel } from '@/features/workouts/equipment';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { deleteWorkout, duplicateWorkout } from '@/features/workouts/repo';
 import { formatDate } from '@/lib/format';
@@ -173,7 +174,11 @@ export default function WorkoutDetailScreen() {
                     description={
                       [
                         !wod && item.targetSets.length ? describeTargets(item.targetSets) : describeItem(item, block.kind),
-                        item.machineId ? `⚙ ${machineMap.get(item.machineId)?.name ?? ''}` : null,
+                        item.machineId
+                          ? `⚙ ${machineMap.get(item.machineId)?.name ?? ''}`
+                          : item.equipment && (exerciseMap.get(item.exerciseId)?.equipment.length ?? 0) > 1
+                            ? equipmentLabel(item.equipment)
+                            : null,
                       ]
                         .filter(Boolean)
                         .join('\n') || undefined

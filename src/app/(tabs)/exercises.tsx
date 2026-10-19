@@ -3,8 +3,9 @@ import { useMemo, useState } from 'react';
 import { SectionList, StyleSheet, View } from 'react-native';
 import { Appbar, Dialog, FAB, List, Portal, Searchbar, Text } from 'react-native-paper';
 
-import { EquipmentFilter, equipmentText, matchesExercise, MEASURE_LABEL, NewExerciseForm } from '@/components/exercise-picker';
+import { EquipmentFilter, matchesExercise, MEASURE_LABEL, NewExerciseForm } from '@/components/exercise-picker';
 import type { Equipment, Exercise } from '@/db/schema';
+import { equipmentText } from '@/features/workouts/equipment';
 import { useExercises } from '@/features/workouts/queries';
 
 export default function ExercisesScreen() {

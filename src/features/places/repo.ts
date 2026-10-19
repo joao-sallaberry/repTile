@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, notInArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import {
@@ -12,6 +12,7 @@ import {
   type LocationKind,
   type Machine,
 } from '@/db/schema';
+import { hasStation, toggleEquipment } from '@/features/workouts/equipment';
 import { createdFields, touched } from '@/lib/ids';
 
 export async function createLocation(input: { name: string; kind: LocationKind }) {
@@ -69,11 +70,14 @@ export async function linkMachineToExercise(machineId: string, exerciseId: strin
     ),
   });
   if (!existing) await db.insert(machineExercises).values({ ...createdFields(), machineId, exerciseId });
-  // An exercise done on a machine is a machine exercise (cable exercises also use stations).
-  await db
-    .update(exercises)
-    .set({ equipment: 'machine', ...touched() })
-    .where(and(eq(exercises.id, exerciseId), notInArray(exercises.equipment, ['machine', 'cable'])));
+  // An exercise done on a machine can be done with a machine (cable exercises also use stations).
+  const exercise = await db.query.exercises.findFirst({ where: eq(exercises.id, exerciseId) });
+  if (exercise && !exercise.equipment.some(hasStation)) {
+    await db
+      .update(exercises)
+      .set({ equipment: toggleEquipment(exercise.equipment, 'machine'), ...touched() })
+      .where(eq(exercises.id, exerciseId));
+  }
 }
 
 export async function unlinkMachineFromExercise(machineId: string, exerciseId: string) {

@@ -6,6 +6,7 @@ import { useMachineMap } from '@/features/places/queries';
 import { estimateOneRepMax } from '@/features/stats/prs';
 import { describeBlockFormat } from '@/features/workouts/blocks';
 import { describeResult } from '@/features/workouts/describe';
+import { equipmentLabel } from '@/features/workouts/equipment';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatWeight } from '@/lib/format';
 
@@ -28,12 +29,19 @@ export function RecentPrs({ now }: { now: number }) {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
         {prs.map((pr) => {
           const isSet = pr.kind === 'set';
-          const title = isSet ? (exerciseMap.get(pr.exerciseId)?.name ?? 'Exercício') : pr.sessionName;
+          const exercise = isSet ? exerciseMap.get(pr.exerciseId) : undefined;
+          const title = isSet ? (exercise?.name ?? 'Exercício') : pr.sessionName;
           const value = isSet ? `${formatWeight(pr.weight)} × ${pr.reps}` : (describeResult(pr.block) ?? '—');
           const detail = isSet
             ? pr.machineId
               ? (machineMap.get(pr.machineId)?.name ?? 'Máquina')
-              : `1RM est. ${formatWeight(Math.round(estimateOneRepMax(pr.weight, pr.reps)))}`
+              : [
+                  // Which equipment, when the exercise can be done with several.
+                  exercise && exercise.equipment.length > 1 && pr.equipment ? equipmentLabel(pr.equipment) : null,
+                  `1RM est. ${formatWeight(Math.round(estimateOneRepMax(pr.weight, pr.reps)))}`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
             : (describeBlockFormat(pr.block) ?? 'WOD');
           return (
             <Card

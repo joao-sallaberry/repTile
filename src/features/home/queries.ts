@@ -10,6 +10,7 @@ import {
   workoutBlocks,
   workoutItems,
   workouts,
+  type Equipment,
   type Session,
   type SessionBlock,
   type SessionSet,
@@ -111,10 +112,19 @@ export function useRoutines(): RoutineRow[] {
 }
 
 export type RecentPr =
-  | { kind: 'set'; key: string; at: number; exerciseId: string; machineId: string | null; weight: number; reps: number }
+  | {
+      kind: 'set';
+      key: string;
+      at: number;
+      exerciseId: string;
+      equipment: Equipment | null;
+      machineId: string | null;
+      weight: number;
+      reps: number;
+    }
   | { kind: 'wod'; key: string; at: number; block: SessionBlock; sessionId: string; sessionName: string };
 
-/** Latest records: the best record set per exercise + machine, plus WOD block records. */
+/** Latest records: the best record set per exercise + equipment + machine, plus WOD block records. */
 export function useRecentPrs(limit = 6): RecentPr[] {
   const { data: setRows } = useLiveQuery(
     db
@@ -136,10 +146,10 @@ export function useRecentPrs(limit = 6): RecentPr[] {
   );
 
   return useMemo(() => {
-    // Rows are newest first: keep, per exercise + machine, the heaviest record set of its newest session.
+    // Rows are newest first: keep, per exercise + equipment + machine, the heaviest record set of its newest session.
     const byKey = new Map<string, RecentPr & { kind: 'set'; sessionId: string }>();
     for (const { set } of setRows) {
-      const key = `${set.exerciseId}:${set.machineId ?? ''}`;
+      const key = `${set.exerciseId}:${set.equipment ?? ''}:${set.machineId ?? ''}`;
       const cur = byKey.get(key);
       const weight = set.weight ?? 0;
       if (cur && (cur.sessionId !== set.sessionId || weight <= cur.weight)) continue;
@@ -149,6 +159,7 @@ export function useRecentPrs(limit = 6): RecentPr[] {
         sessionId: set.sessionId,
         at: set.completedAt ?? 0,
         exerciseId: set.exerciseId,
+        equipment: set.equipment,
         machineId: set.machineId,
         weight,
         reps: set.reps ?? 0,

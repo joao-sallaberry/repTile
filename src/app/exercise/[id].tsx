@@ -7,15 +7,25 @@ import { Button, Card, Chip, Dialog, IconButton, List, Portal, Text } from 'reac
 
 import { BarChart } from '@/components/bar-chart';
 import { MachineThumb } from '@/components/machine-thumb';
-import { EquipmentChips, equipmentText, hasStation, MEASURE_LABEL, stationNoun } from '@/components/exercise-picker';
+import { EquipmentChips, MEASURE_LABEL } from '@/components/exercise-picker';
 import { db } from '@/db/client';
 import { exercises, machineExercises, machines, sessionSets, type Equipment } from '@/db/schema';
 import { useMachineMap } from '@/features/places/queries';
 import { performedSets, type PerformedSetRow } from '@/features/session/repo';
 import { countsTowardStats } from '@/features/session/sets';
 import { computePRs, estimateOneRepMax, type PerformedSet } from '@/features/stats/prs';
+import { equipmentLabel, equipmentText, hasStation, stationNoun } from '@/features/workouts/equipment';
 import { deleteExercise, updateExercise } from '@/features/workouts/repo';
 import { formatDate, formatWeight } from '@/lib/format';
+
+/** Sets with the same equipment and machine are compared with each other. */
+const variantKey = (s: Pick<PerformedSetRow, 'equipment' | 'machineId'>) => `${s.equipment ?? ''}:${s.machineId ?? ''}`;
+
+/** "Máquinas", "Polias" or "Máquinas e polias", after the stations the exercise can use. */
+function stationsTitle(equipment: Equipment[]) {
+  const machine = equipment.includes('machine') || !equipment.includes('cable');
+  return machine && equipment.includes('cable') ? 'Máquinas e polias' : machine ? 'Máquinas' : 'Polias';
+}
 
 const shortDate = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' });
 
@@ -25,8 +35,8 @@ export default function ExerciseDetailScreen() {
   // Reload whenever any set changes.
   const { updatedAt } = useLiveQuery(db.select({ id: sessionSets.id }).from(sessionSets).where(eq(sessionSets.exerciseId, id)), [id]);
   const [allSets, setAllSets] = useState<PerformedSetRow[]>([]);
-  // undefined = every machine; null = without a machine
-  const [machineFilter, setMachineFilter] = useState<string | null | undefined>(undefined);
+  // History filter by variant (equipment + machine, see `variantKey`); undefined = all.
+  const [variantFilter, setVariantFilter] = useState<string | undefined>(undefined);
   const machineMap = useMachineMap();
   // Machines this exercise is done on (their screen has the photo).
   const { data: linkedMachines } = useLiveQuery(
@@ -38,16 +48,21 @@ export default function ExerciseDetailScreen() {
       .orderBy(asc(machines.name)),
     [id],
   );
-  const [equipment, setEquipment] = useState<Equipment | null>(null);
+  const [equipment, setEquipment] = useState<Equipment[] | null>(null);
 
   useEffect(() => {
     performedSets(id).then((rows) => setAllSets(rows.filter((r) => countsTowardStats(r.type))));
   }, [id, updatedAt]);
 
-  const machineIds = useMemo(() => [...new Set(allSets.map((s) => s.machineId))], [allSets]);
+  // Each equipment + machine the exercise was done with, in order of first use.
+  const variants = useMemo(() => {
+    const map = new Map<string, PerformedSetRow>();
+    for (const s of allSets) if (!map.has(variantKey(s))) map.set(variantKey(s), s);
+    return [...map.entries()];
+  }, [allSets]);
   const sets: PerformedSet[] = useMemo(
-    () => (machineFilter === undefined ? allSets : allSets.filter((s) => s.machineId === machineFilter)),
-    [allSets, machineFilter],
+    () => (variantFilter === undefined ? allSets : allSets.filter((s) => variantKey(s) === variantFilter)),
+    [allSets, variantFilter],
   );
 
   const prs = useMemo(() => computePRs(sets), [sets]);
@@ -101,10 +116,14 @@ export default function ExerciseDetailScreen() {
           <Dialog.Title>Equipamento</Dialog.Title>
           <Dialog.Content>
             <EquipmentChips value={equipment ?? exercise.equipment} onChange={setEquipment} />
-            {hasStation(equipment ?? undefined) && (
+            {equipment && equipment.length > 1 && (
               <Text variant="bodySmall" style={styles.hint}>
-                No treino você escolhe a {stationNoun(equipment ?? undefined)} específica; o “Anterior” e os PRs ficam separados por{' '}
-                {stationNoun(equipment ?? undefined)}.
+                No treino você escolhe qual usar; o “Anterior” e os PRs ficam separados por equipamento.
+              </Text>
+            )}
+            {equipment?.some(hasStation) && (
+              <Text variant="bodySmall" style={styles.hint}>
+                Na {stationNoun(equipment.find(hasStation))}, você também escolhe qual é a específica, e o histórico fica separado por ela.
               </Text>
             )}
           </Dialog.Content>
@@ -122,14 +141,18 @@ export default function ExerciseDetailScreen() {
         </Dialog>
       </Portal>
 
-      {machineIds.length > 1 || (machineIds.length === 1 && machineIds[0] != null) ? (
+      {variants.length > 1 || (variants.length === 1 && variants[0][1].machineId != null) ? (
         <View style={styles.chips}>
-          <Chip selected={machineFilter === undefined} onPress={() => setMachineFilter(undefined)}>
-            Todas
+          <Chip selected={variantFilter === undefined} onPress={() => setVariantFilter(undefined)}>
+            Todos
           </Chip>
-          {machineIds.map((mid) => (
-            <Chip key={mid ?? 'none'} icon={mid ? 'cog-outline' : undefined} selected={machineFilter === mid} onPress={() => setMachineFilter(mid)}>
-              {mid ? (machineMap.get(mid)?.name ?? 'Máquina') : 'Sem máquina'}
+          {variants.map(([key, { equipment: used, machineId }]) => (
+            <Chip key={key} icon={machineId ? 'cog-outline' : undefined} selected={variantFilter === key} onPress={() => setVariantFilter(key)}>
+              {machineId
+                ? (machineMap.get(machineId)?.name ?? 'Máquina')
+                : used && hasStation(used)
+                  ? `${equipmentLabel(used)} · sem ${stationNoun(used)}`
+                  : equipmentLabel(used ?? 'none')}
             </Chip>
           ))}
         </View>
@@ -158,9 +181,9 @@ export default function ExerciseDetailScreen() {
         </Card>
       )}
 
-      {(hasStation(exercise.equipment) || linkedMachines.length > 0) && (
+      {(exercise.equipment.some(hasStation) || linkedMachines.length > 0) && (
         <Card mode="outlined">
-          <Card.Title title={exercise.equipment === 'cable' ? 'Polias' : 'Máquinas'} subtitle={linkedMachines.length ? 'Toque para ver a foto, os locais e o histórico' : undefined} />
+          <Card.Title title={stationsTitle(exercise.equipment)} subtitle={linkedMachines.length ? 'Toque para ver a foto, os locais e o histórico' : undefined} />
           {linkedMachines.length ? (
             linkedMachines.map(({ machine }) => (
               <List.Item
@@ -175,7 +198,7 @@ export default function ExerciseDetailScreen() {
           ) : (
             <Card.Content>
               <Text variant="bodyMedium" style={styles.hint}>
-                Escolha a {stationNoun(exercise.equipment)} durante o treino (no nome do exercício) e ela aparece aqui.
+                Escolha a {stationNoun(exercise.equipment.find(hasStation))} durante o treino (no nome do exercício) e ela aparece aqui.
               </Text>
             </Card.Content>
           )}

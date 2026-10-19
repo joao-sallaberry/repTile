@@ -1,6 +1,6 @@
 # 0011. Exercises have one equipment; only machine exercises pick a machine
 
-- **Status:** Accepted
+- **Status:** Partly superseded by [0015](0015-multiple-equipment.md) (exercises now list several equipment)
 - **Date:** 2026-10-17
 
 ## Context

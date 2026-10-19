@@ -16,7 +16,8 @@ import {
 
 import { BlockConfigFields } from '@/components/block-config-fields';
 import { DurationField } from '@/components/duration-field';
-import { equipmentText, ExercisePicker, hasStation, stationNoun } from '@/components/exercise-picker';
+import { EquipmentMenu } from '@/components/equipment-menu';
+import { ExercisePicker } from '@/components/exercise-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
 import { NumberField } from '@/components/number-field';
@@ -26,6 +27,7 @@ import type { BlockKind, Exercise, SetType } from '@/db/schema';
 import { useLocation, useMachineMap } from '@/features/places/queries';
 import { setLabels } from '@/features/session/sets';
 import { BLOCK_KIND_ICON, BLOCK_KIND_LABEL, describeBlockFormat, WOD_KINDS } from '@/features/workouts/blocks';
+import { defaultEquipment, equipmentText, hasStation, stationNoun } from '@/features/workouts/equipment';
 import { useExerciseMap } from '@/features/workouts/queries';
 import {
   emptyBlock,
@@ -196,7 +198,7 @@ export default function EditWorkoutScreen() {
           visible
           exerciseId={machineItem.exerciseId}
           exerciseName={exerciseMap.get(machineItem.exerciseId)?.name ?? ''}
-          noun={stationNoun(exerciseMap.get(machineItem.exerciseId)?.equipment)}
+          noun={stationNoun(machineItem.equipment ?? defaultEquipment(exerciseMap.get(machineItem.exerciseId)))}
           locationId={draft.locationId}
           locationName={location?.name}
           currentMachineId={machineItem.machineId}
@@ -286,18 +288,33 @@ function BlockEditor({
         </View>
       );
     }
+    const equipment = item.equipment ?? defaultEquipment(ex);
+    const choices = ex?.equipment ?? [];
     return (
       <Card key={item.id ?? `new-${i}`} mode="contained">
         <Card.Title
           title={ex?.name ?? 'Exercício removido'}
-          subtitle={item.machineId ? `⚙ ${machineMap.get(item.machineId)?.name ?? ''}` : ex && `${ex.category} · ${equipmentText(ex)}`}
+          subtitle={
+            item.machineId
+              ? `⚙ ${machineMap.get(item.machineId)?.name ?? ''}`
+              : ex && (choices.length > 1 ? ex.category : `${ex.category} · ${equipmentText(ex)}`)
+          }
           right={() => actions}
         />
         <Card.Content>
-          {(hasStation(ex?.equipment) || item.machineId) && (
-            <Button compact icon="cog-outline" mode="text" style={styles.machineBtn} onPress={() => onPickMachine(i)}>
-              {item.machineId ? `Trocar ${stationNoun(ex?.equipment)}` : `Sem ${stationNoun(ex?.equipment)} · adicionar`}
-            </Button>
+          {(choices.length > 1 || hasStation(equipment) || item.machineId) && (
+            <View style={styles.equipmentRow}>
+              <EquipmentMenu
+                options={choices}
+                value={equipment}
+                onChange={(e) => setItem(i, { equipment: e, machineId: hasStation(e) ? item.machineId : null })}
+              />
+              {(hasStation(equipment) || item.machineId) && (
+                <Button compact icon="cog-outline" mode="text" style={styles.machineBtn} onPress={() => onPickMachine(i)}>
+                  {item.machineId ? `Trocar ${stationNoun(equipment)}` : `Sem ${stationNoun(equipment)} · adicionar`}
+                </Button>
+              )}
+            </View>
           )}
           <ItemFields kind={block.kind} exercise={ex} item={item} onChange={(patch) => setItem(i, patch)} />
         </Card.Content>
@@ -546,6 +563,7 @@ const styles = StyleSheet.create({
   field: { flexGrow: 1, flexBasis: 90 },
   locationBtn: { borderRadius: 12 },
   machineBtn: { alignSelf: 'flex-start', marginLeft: -8, marginBottom: 4 },
+  equipmentRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
   setsBox: { gap: 8 },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   th: { fontSize: 11, fontWeight: '700', letterSpacing: 0.6, opacity: 0.7, textAlign: 'center' },

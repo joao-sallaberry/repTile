@@ -1,7 +1,7 @@
 import type { Db } from './client';
 import { exercises, type Equipment, type Measure } from './schema';
 
-type SeedExercise = [slug: string, name: string, category: string, measure: Measure, equipment: Equipment];
+type SeedExercise = [slug: string, name: string, category: string, measure: Measure, equipment: Equipment | Equipment[]];
 
 // Fixed IDs ("seed-<slug>") so the same exercises have the same ID on every device.
 const SEED: SeedExercise[] = [
@@ -15,7 +15,7 @@ const SEED: SeedExercise[] = [
   // Back
   ['deadlift', 'Levantamento terra', 'Costas', 'weight_reps', 'barbell'],
   ['barbell-row', 'Remada curvada', 'Costas', 'weight_reps', 'barbell'],
-  ['seated-row', 'Remada baixa', 'Costas', 'weight_reps', 'machine'],
+  ['seated-row', 'Remada baixa', 'Costas', 'weight_reps', ['machine', 'cable']],
   ['lat-pulldown', 'Puxada alta', 'Costas', 'weight_reps', 'machine'],
   ['pull-up', 'Barra fixa', 'Costas', 'reps', 'other'],
   // Legs
@@ -25,21 +25,21 @@ const SEED: SeedExercise[] = [
   ['leg-extension', 'Cadeira extensora', 'Pernas', 'weight_reps', 'machine'],
   ['leg-curl', 'Mesa flexora', 'Pernas', 'weight_reps', 'machine'],
   ['romanian-deadlift', 'Stiff', 'Pernas', 'weight_reps', 'barbell'],
-  ['lunge', 'Afundo', 'Pernas', 'weight_reps', 'dumbbell'],
+  ['lunge', 'Afundo', 'Pernas', 'weight_reps', ['dumbbell', 'barbell']],
   ['calf-raise', 'Panturrilha', 'Pernas', 'weight_reps', 'machine'],
   ['hip-thrust', 'Elevação pélvica', 'Pernas', 'weight_reps', 'barbell'],
   // Shoulders
-  ['overhead-press', 'Desenvolvimento', 'Ombros', 'weight_reps', 'barbell'],
-  ['lateral-raise', 'Elevação lateral', 'Ombros', 'weight_reps', 'dumbbell'],
-  ['front-raise', 'Elevação frontal', 'Ombros', 'weight_reps', 'dumbbell'],
+  ['overhead-press', 'Desenvolvimento', 'Ombros', 'weight_reps', ['barbell', 'dumbbell', 'machine']],
+  ['lateral-raise', 'Elevação lateral', 'Ombros', 'weight_reps', ['dumbbell', 'cable']],
+  ['front-raise', 'Elevação frontal', 'Ombros', 'weight_reps', ['dumbbell', 'cable']],
   ['face-pull', 'Face pull', 'Ombros', 'weight_reps', 'cable'],
   ['external-rotation', 'Rotação externa', 'Ombros', 'weight_reps', 'cable'],
   ['internal-rotation', 'Rotação interna', 'Ombros', 'weight_reps', 'cable'],
   // Arms
-  ['barbell-curl', 'Rosca direta', 'Braços', 'weight_reps', 'barbell'],
+  ['barbell-curl', 'Rosca direta', 'Braços', 'weight_reps', ['barbell', 'dumbbell', 'cable']],
   ['hammer-curl', 'Rosca martelo', 'Braços', 'weight_reps', 'dumbbell'],
   ['triceps-pushdown', 'Tríceps pulley', 'Braços', 'weight_reps', 'cable'],
-  ['skull-crusher', 'Tríceps testa', 'Braços', 'weight_reps', 'barbell'],
+  ['skull-crusher', 'Tríceps testa', 'Braços', 'weight_reps', ['barbell', 'dumbbell']],
   ['dip', 'Paralelas (dip)', 'Braços', 'reps', 'other'],
   // Core
   ['plank', 'Prancha', 'Core', 'time', 'none'],
@@ -92,7 +92,7 @@ export async function seedExercises(db: Db) {
         name,
         category,
         measure,
-        equipment,
+        equipment: Array.isArray(equipment) ? equipment : [equipment],
         isCustom: false,
         createdAt: now,
         updatedAt: now,

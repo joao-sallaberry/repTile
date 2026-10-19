@@ -56,7 +56,7 @@ export type SessionRecord = SetRecord | WodRecord;
 
 /**
  * What each record set beat: a heavier load than ever ("maior carga"), else a higher estimated 1RM.
- * `previous` are the earlier working sets of the same exercise + machine.
+ * `previous` are the earlier working sets of the same exercise + equipment + machine.
  */
 export function describeSetRecord(best: LoadSet, previous: LoadSet[]): { what: string; detail: string } {
   const before = computePRs(previous.map((p, i) => ({ ...p, sessionId: String(i), completedAt: i })));
@@ -74,7 +74,7 @@ export function describeSetRecord(best: LoadSet, previous: LoadSet[]): { what: s
   };
 }
 
-/** The session's records: one per exercise + machine with a record set, plus WOD block records, with what they beat. */
+/** The session's records: one per exercise + equipment + machine with a record set, plus WOD block records, with what they beat. */
 export async function loadSessionRecords(sessionId: string, sets: SessionSet[], blocks: SessionBlock[]): Promise<SessionRecord[]> {
   const session = await db.query.sessions.findFirst({ where: eq(sessions.id, sessionId) });
   if (!session) return [];
@@ -83,12 +83,18 @@ export async function loadSessionRecords(sessionId: string, sets: SessionSet[], 
   const groups = new Map<string, SessionSet[]>();
   for (const s of sets) {
     if (!s.isPr) continue;
-    const key = `${s.exerciseId}:${s.machineId ?? ''}`;
+    const key = `${s.exerciseId}:${s.equipment ?? ''}:${s.machineId ?? ''}`;
     groups.set(key, [...(groups.get(key) ?? []), s]);
   }
   for (const [key, list] of groups) {
     const best = bestSet(list)!;
-    const previous = (await performedSets(best.exerciseId, { machineId: best.machineId, excludeSessionId: sessionId })).filter(
+    const previous = (
+      await performedSets(best.exerciseId, {
+        equipment: best.equipment ?? undefined,
+        machineId: best.machineId,
+        excludeSessionId: sessionId,
+      })
+    ).filter(
       (p) => countsTowardStats(p.type) && p.completedAt < session.startedAt,
     );
     records.push({ kind: 'set', key, exerciseId: best.exerciseId, machineId: best.machineId, ...describeSetRecord(best, previous) });
