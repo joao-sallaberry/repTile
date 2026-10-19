@@ -1,9 +1,10 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
-import { Appbar, Card, FAB, Icon, IconButton, Searchbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
+import { Appbar, Card, Icon, IconButton, Searchbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
-import { FilterChips } from '@/components/filter-chips';import { useRoutines, type RoutineRow } from '@/features/home/queries';
+import { FilterChips } from '@/components/filter-chips';
+import { PrimaryFab } from '@/components/primary-fab';import { useRoutines, type RoutineRow } from '@/features/home/queries';
 import { relativeDays, rotationOrder } from '@/features/home/stats';
 import { useLocations } from '@/features/places/queries';
 import { beginRoutine } from '@/features/session/begin';
@@ -29,7 +30,6 @@ function matches(r: RoutineRow, filter: Filter, query: string) {
 }
 
 export default function WorkoutsScreen() {
-  const theme = useTheme();
   const [now, setNow] = useState(Date.now);
   useFocusEffect(useCallback(() => setNow(Date.now()), []));
   const routines = useRoutines();
@@ -83,7 +83,7 @@ export default function WorkoutsScreen() {
                 onChange={(key) => setFilter(chips.find((c) => c.key === key)!.filter)}
               />
               <View style={styles.sectionHeader}>
-                <Text variant="titleMedium">Rotinas</Text>
+                <Text variant="titleMedium">Minhas rotinas</Text>
                 {count > 1 && (
                   <Text variant="bodySmall" style={styles.muted}>
                     a mais antiga primeiro
@@ -118,12 +118,7 @@ export default function WorkoutsScreen() {
         }
         ListFooterComponent={<Templates />}
       />
-      <FAB
-        icon="plus"
-        label="Nova rotina"
-        color={theme.colors.onPrimary}
-        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-        onPress={() => router.push('/workout/edit')} />
+      <PrimaryFab icon="plus" label="Nova rotina" onPress={() => router.push('/workout/edit')} />
     </View>
   );
 }
@@ -245,5 +240,4 @@ const styles = StyleSheet.create({
   templateRow: { gap: 8 },
   template: { width: 148, minHeight: 88, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed' },
   templateText: { gap: 4, padding: 12 },
-  fab: { position: 'absolute', right: 16, bottom: 16 },
 });

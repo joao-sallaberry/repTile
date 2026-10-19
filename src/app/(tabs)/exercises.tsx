@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { SectionList, StyleSheet, View } from 'react-native';
-import { Appbar, Dialog, FAB, List, Portal, Searchbar, Text } from 'react-native-paper';
+import { Appbar, Dialog, List, Portal, Searchbar, Text } from 'react-native-paper';
 
 import { ExerciseThumb } from '@/components/exercise-media';
 import { EquipmentFilter, matchesExercise, MEASURE_LABEL, NewExerciseForm } from '@/components/exercise-picker';
+import { PrimaryFab } from '@/components/primary-fab';
 import type { Equipment, Exercise } from '@/db/schema';
 import { equipmentText } from '@/features/workouts/equipment';
 import { useExercises } from '@/features/workouts/queries';
@@ -47,7 +48,7 @@ export default function ExercisesScreen() {
           />
         )}
       />
-      <FAB icon="plus" style={styles.fab} onPress={() => setCreating(true)} />
+      <PrimaryFab icon="plus" accessibilityLabel="Novo exercício" onPress={() => setCreating(true)} />
       <Portal>
         <Dialog visible={creating} onDismiss={() => setCreating(false)}>
           <Dialog.Title>Novo exercício</Dialog.Title>
@@ -64,5 +65,4 @@ const styles = StyleSheet.create({
   filter: { paddingHorizontal: 16, paddingTop: 0, paddingBottom: 8 },
   empty: { padding: 24, textAlign: 'center', opacity: 0.7 },
   list: { paddingBottom: 96 },
-  fab: { position: 'absolute', right: 16, bottom: 16 },
 });

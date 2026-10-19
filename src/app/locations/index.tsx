@@ -2,8 +2,9 @@ import { and, count, eq, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router } from 'expo-router';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { FAB, List, Text } from 'react-native-paper';
+import { List, Text } from 'react-native-paper';
 
+import { PrimaryFab } from '@/components/primary-fab';
 import { db } from '@/db/client';
 import { locationMachines, locations } from '@/db/schema';
 import { useCurrentLocation } from '@/features/places/current';
@@ -49,7 +50,7 @@ export default function LocationsScreen() {
           </View>
         }
       />
-      <FAB icon="plus" label="Novo local" style={styles.fab} onPress={() => router.push('/locations/new')} />
+      <PrimaryFab icon="plus" label="Novo local" onPress={() => router.push('/locations/new')} />
     </View>
   );
 }
@@ -59,5 +60,4 @@ const styles = StyleSheet.create({
   list: { paddingBottom: 96 },
   intro: { paddingHorizontal: 16, paddingVertical: 12, opacity: 0.8 },
   empty: { alignItems: 'center', padding: 32, gap: 8 },
-  fab: { position: 'absolute', right: 16, bottom: 16 },
 });
