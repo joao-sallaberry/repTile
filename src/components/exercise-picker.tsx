@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import type { ViewStyle } from 'react-native';
 import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Chip, Dialog, List, Portal, SegmentedButtons, Searchbar, Text, TextInput } from 'react-native-paper';
+import { Button, Dialog, List, Portal, SegmentedButtons, Searchbar, Text, TextInput } from 'react-native-paper';
 
 import { ExerciseThumb } from '@/components/exercise-media';
+import { FilterChip } from '@/components/filter-chips';
 import { EQUIPMENT, MEASURES, type Equipment, type Exercise, type Measure } from '@/db/schema';
 import { useExercises } from '@/features/workouts/queries';
 import {
@@ -14,6 +15,7 @@ import {
   toggleEquipment,
 } from '@/features/workouts/equipment';
 import { createExercise } from '@/features/workouts/repo';
+import { normalizeSearch as normalize } from '@/lib/search';
 
 export const MEASURE_LABEL: Record<Measure, string> = {
   weight_reps: 'Carga × reps',
@@ -28,9 +30,9 @@ export function EquipmentChips({ value, onChange }: { value: Equipment[]; onChan
   return (
     <View style={styles.chips}>
       {EQUIPMENT.map((e) => (
-        <Chip key={e} compact selected={value.includes(e)} showSelectedOverlay onPress={() => onChange(toggleEquipment(value, e))}>
+        <FilterChip key={e} compact selected={value.includes(e)} onPress={() => onChange(toggleEquipment(value, e))}>
           {EQUIPMENT_LABEL[e]}
-        </Chip>
+        </FilterChip>
       ))}
     </View>
   );
@@ -55,17 +57,16 @@ export function EquipmentFilter({
   if (used.length < 2) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={[styles.filter, style]}>
-      <Chip selected={value.length === 0} showSelectedOverlay onPress={() => onChange([])}>
+      <FilterChip selected={value.length === 0} onPress={() => onChange([])}>
         Todos
-      </Chip>
+      </FilterChip>
       {used.map((e) => (
-        <Chip
+        <FilterChip
           key={e}
           selected={value.includes(e)}
-          showSelectedOverlay
           onPress={() => onChange(value.includes(e) ? value.filter((v) => v !== e) : [...value, e])}>
           {equipmentLabel(e)}
-        </Chip>
+        </FilterChip>
       ))}
     </ScrollView>
   );
@@ -193,9 +194,6 @@ export function NewExerciseForm({
     </>
   );
 }
-
-const normalize = (s: string) =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 const styles = StyleSheet.create({
   dialog: { maxHeight: '85%' },

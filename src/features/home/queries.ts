@@ -1,9 +1,10 @@
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, max } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, max, min } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useMemo } from 'react';
 
 import { db } from '@/db/client';
 import {
+  exercises,
   sessionBlocks,
   sessions,
   sessionSets,
@@ -67,7 +68,13 @@ function countPrs(sets: Pick<SessionSet, 'isPr' | 'sessionId' | 'exerciseId'>[])
 }
 
 export type RoutineBlock = WorkoutBlock & { itemCount: number };
-export type RoutineRow = Workout & { lastDoneAt: number | null; exerciseCount: number; blocks: RoutineBlock[] };
+export type RoutineRow = Workout & {
+  lastDoneAt: number | null;
+  exerciseCount: number;
+  blocks: RoutineBlock[];
+  /** Exercise names in routine order, without repeats. */
+  exerciseNames: string[];
+};
 
 /** Saved routines with their blocks and when each was last done, most recently done first (never done last). */
 export function useRoutines(): RoutineRow[] {
@@ -89,10 +96,21 @@ export function useRoutines(): RoutineRow[] {
       .where(isNull(workoutItems.deletedAt))
       .groupBy(workoutItems.blockId),
   );
+  const { data: names } = useLiveQuery(
+    db
+      .select({ workoutId: workoutBlocks.workoutId, name: exercises.name })
+      .from(workoutItems)
+      .innerJoin(workoutBlocks, eq(workoutBlocks.id, workoutItems.blockId))
+      .innerJoin(exercises, eq(exercises.id, workoutItems.exerciseId))
+      .where(and(isNull(workoutItems.deletedAt), isNull(workoutBlocks.deletedAt)))
+      .orderBy(asc(workoutBlocks.position), asc(workoutItems.position)),
+  );
 
   return useMemo(() => {
     const lastBy = new Map(last.map((l) => [l.workoutId, l.at]));
     const countBy = new Map(counts.map((c) => [c.blockId, c.n]));
+    const namesBy = new Map<string, Set<string>>();
+    for (const n of names) namesBy.set(n.workoutId, (namesBy.get(n.workoutId) ?? new Set()).add(n.name));
     const blocksBy = new Map<string, RoutineBlock[]>();
     for (const b of blocks) {
       blocksBy.set(b.workoutId, [...(blocksBy.get(b.workoutId) ?? []), { ...b, itemCount: countBy.get(b.id) ?? 0 }]);
@@ -105,10 +123,11 @@ export function useRoutines(): RoutineRow[] {
           blocks: wb,
           lastDoneAt: lastBy.get(w.id) ?? null,
           exerciseCount: wb.filter((b) => b.kind === 'exercises').reduce((n, b) => n + b.itemCount, 0),
+          exerciseNames: [...(namesBy.get(w.id) ?? [])],
         };
       })
       .sort((a, b) => (b.lastDoneAt ?? -1) - (a.lastDoneAt ?? -1) || b.updatedAt - a.updatedAt);
-  }, [list, last, blocks, counts]);
+  }, [list, last, blocks, counts, names]);
 }
 
 export type RecentPr =
@@ -185,6 +204,29 @@ export function useRecentSessions(limit = 5): RecentSession[] {
     db.select().from(sessions).where(finished).orderBy(desc(sessions.startedAt)).limit(limit),
     [limit],
   );
+  return useSessionStats(list);
+}
+
+/** Finished sessions started in [start, end), newest first, with the same stats as `useRecentSessions`. */
+export function useSessionsBetween(start: number, end: number): RecentSession[] {
+  const { data: list } = useLiveQuery(
+    db
+      .select()
+      .from(sessions)
+      .where(and(finished, gte(sessions.startedAt, start), lt(sessions.startedAt, end)))
+      .orderBy(desc(sessions.startedAt)),
+    [start, end],
+  );
+  return useSessionStats(list);
+}
+
+/** How many sessions were finished, and when the first one started. */
+export function useHistoryOverview(): { count: number; firstAt: number | null } {
+  const { data } = useLiveQuery(db.select({ n: count(), first: min(sessions.startedAt) }).from(sessions).where(finished));
+  return { count: data[0]?.n ?? 0, firstAt: data[0]?.first ?? null };
+}
+
+function useSessionStats(list: Session[]): RecentSession[] {
   const ids = list.map((s) => s.id);
   const key = ids.join(',');
   const { data: setRows } = useLiveQuery(

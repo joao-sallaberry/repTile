@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
-import { Card, Chip, List, Switch, Text } from 'react-native-paper';
+import { Card, List, Switch, Text } from 'react-native-paper';
 
+import { FilterChip } from '@/components/filter-chips';
 import { useWeeklyGoal } from '@/features/home/goal';
 import { useSessionPreferences } from '@/features/session/preferences';
 import { TimerPermissionsList } from '@/features/timer/permissions-list';
@@ -29,9 +30,9 @@ export default function SettingsScreen() {
       </Text>
       <View style={styles.chips}>
         {GOALS.map((g) => (
-          <Chip key={g ?? 'none'} selected={goal === g} showSelectedCheck={false} onPress={() => setGoal(g)}>
+          <FilterChip key={g ?? 'none'} selected={goal === g} onPress={() => setGoal(g)}>
             {g ?? 'Sem meta'}
-          </Chip>
+          </FilterChip>
         ))}
       </View>
       <Card mode="contained">

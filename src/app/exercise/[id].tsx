@@ -9,6 +9,7 @@ import { BarChart } from '@/components/bar-chart';
 import { ExerciseMedia, hasExerciseMedia } from '@/components/exercise-media';
 import { MachineThumb } from '@/components/machine-thumb';
 import { EquipmentChips, MEASURE_LABEL } from '@/components/exercise-picker';
+import { FilterChip } from '@/components/filter-chips';
 import { db } from '@/db/client';
 import { exercises, machineExercises, machines, sessionSets, type Equipment } from '@/db/schema';
 import { mediaEquipment } from '@/features/exercises/media-map';
@@ -114,14 +115,13 @@ export default function ExerciseDetailScreen() {
           {illustrated.length > 1 && (
             <View style={styles.chips}>
               {illustrated.map((e) => (
-                <Chip
+                <FilterChip
                   key={e}
                   compact
                   selected={(shownEquipment ?? defaultEquipment(exercise)) === e}
-                  showSelectedOverlay
                   onPress={() => setShownEquipment(e)}>
                   {equipmentLabel(e)}
-                </Chip>
+                </FilterChip>
               ))}
             </View>
           )}
@@ -167,11 +167,15 @@ export default function ExerciseDetailScreen() {
 
       {variants.length > 1 || (variants.length === 1 && variants[0][1].machineId != null) ? (
         <View style={styles.chips}>
-          <Chip selected={variantFilter === undefined} onPress={() => setVariantFilter(undefined)}>
+          <FilterChip selected={variantFilter === undefined} onPress={() => setVariantFilter(undefined)}>
             Todos
-          </Chip>
+          </FilterChip>
           {variants.map(([key, { equipment: used, machineId }]) => (
-            <Chip key={key} icon={machineId ? 'cog-outline' : undefined} selected={variantFilter === key} onPress={() => {
+            <FilterChip
+              key={key}
+              icon={machineId ? 'cog-outline' : undefined}
+              selected={variantFilter === key}
+              onPress={() => {
                 setVariantFilter(key);
                 if (used) setShownEquipment(used);
               }}>
@@ -180,7 +184,7 @@ export default function ExerciseDetailScreen() {
                 : used && hasStation(used)
                   ? `${equipmentLabel(used)} · sem ${stationNoun(used)}`
                   : equipmentLabel(used ?? 'none')}
-            </Chip>
+            </FilterChip>
           ))}
         </View>
       ) : null}

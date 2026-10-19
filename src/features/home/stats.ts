@@ -61,12 +61,16 @@ export function nextInRotation<T extends { id: string; createdAt: number }>(
   routines: T[],
   lastDoneById: Map<string, number>,
 ): T | null {
-  let best: T | null = null;
+  return rotationOrder(routines, lastDoneById)[0] ?? null;
+}
+
+/** Routines in rotation order: never done first (oldest first), then the one done longest ago. */
+export function rotationOrder<T extends { id: string; createdAt: number }>(
+  routines: T[],
+  lastDoneById: Map<string, number>,
+): T[] {
   const key = (r: T) => lastDoneById.get(r.id) ?? -Infinity;
-  for (const r of routines) {
-    if (!best || key(r) < key(best) || (key(r) === key(best) && r.createdAt < best.createdAt)) best = r;
-  }
-  return best;
+  return [...routines].sort((a, b) => key(a) - key(b) || a.createdAt - b.createdAt);
 }
 
 export type StatSet = { type: SetType; weight: number | null; reps: number | null; completedAt: number | null };

@@ -3,6 +3,7 @@ import {
   formatVolume,
   nextInRotation,
   relativeDays,
+  rotationOrder,
   summarizeSets,
   weekBounds,
   weekDays,
@@ -70,6 +71,14 @@ describe('nextInRotation', () => {
 
   it('returns null without routines', () => {
     expect(nextInRotation([], new Map())).toBeNull();
+  });
+
+  it('rotationOrder lists never done first, then the one done longest ago', () => {
+    const last = new Map([
+      ['a', at(15)],
+      ['c', at(14)],
+    ]);
+    expect(rotationOrder([a, b, c], last)).toEqual([b, c, a]);
   });
 });
 

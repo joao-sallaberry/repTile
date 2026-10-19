@@ -3,6 +3,7 @@
 Android app (React Native + Expo) to plan and run gym and CrossFit workouts.
 
 - **Home**: this week's trained days (Monday to Sunday) against an optional weekly goal, the next routine in your rotation, a "Treino livre" (empty workout, can be saved as a routine at the end), your routines with one-tap start, recent PRs and the last workouts. First use offers ready-made templates (ABC, Full body, Fran, Cindy).
+- **Treinos**: your routines in rotation order (the next one highlighted) with their exercises and location and a ▶ to start, search, filters (strength, WOD, location) and the ready-made templates.
 - **Blocks**: a workout is a list of blocks — plain exercises and timed WOD blocks (AMRAP, EMOM — also alternating, one movement per interval —, For Time and Tabata) in any mix, done in any order. Blocks can also be added during a workout.
 - **Exercises** (Hevy-style set log): warm-up, normal, drop and to-failure sets, each with its own weight and reps; a "Previous" column with what you did last time; automatic rest timer between sets (warm-ups can skip it, in Ajustes). Start and end times can be adjusted when finishing.
 - **Equipment**: each exercise lists the equipment it can be done with (livre/bodyweight, barbell, band, dumbbell, suspension trainer, kettlebell, cable, machine, other), editable on its screen; exercise lists can be filtered by equipment. When there are several (e.g. a curl with barbell, dumbbells or cable, or a lunge with dumbbells or bodyweight), routines and sessions pick the one used, and "Anterior" and PRs are kept per equipment.
@@ -11,7 +12,8 @@ Android app (React Native + Expo) to plan and run gym and CrossFit workouts.
 - **WOD blocks**: a full-screen timer per format with lead-in countdown — EMOM dial with current/next movement and "Pular", AMRAP round counter with pace, For Time rounds with splits, Tabata with work/rest colors and reps per round — and a result per block with PRs.
 - **Notifications**: alerts when a rest or WOD ends, even with the screen off or the app killed. The needed permissions are asked on a welcome screen at first launch and can be reviewed in Settings.
 - **Workout summary**: after finishing, "Treino concluído!" shows duration, volume, sets, the new records (and what they beat), each exercise's best set and the WOD results; "Atualizar rotina com estes valores" makes today's sets and loads the routine's new targets.
-- **History and PRs**: max weight, estimated 1RM, volume and a progression chart per exercise (filterable by machine). Warm-up sets don't count towards volume or PRs.
+- **History**: a month calendar with the trained days and record days, the month's totals, filters (with records, WOD, per routine) and the workouts grouped by week.
+- **PRs**: max weight, estimated 1RM, volume and a progression chart per exercise (filterable by machine). Warm-up sets don't count towards volume or PRs.
 
 Data is stored on the device (SQLite). The app UI is in Portuguese.
 
@@ -97,6 +99,7 @@ src/app/                 # screens (expo-router)
 src/db/                  # Drizzle schema, migrations and seed exercises
 src/features/timer/      # timer engine, beeps and notifications
 src/features/home/       # home screen sections, week stats and the weekly goal
+src/features/history/    # history tab: month calendar and week grouping
 src/features/session/    # running workouts (exercise blocks and WOD blocks)
 src/features/stats/      # PR calculations
 src/features/places/     # locations, machines (and their photos) and the current location

@@ -1,29 +1,18 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Card, List, Text, useTheme } from 'react-native-paper';
 
 import { useCurrentLocation } from '@/features/places/current';
 import { beginFreeWorkout } from '@/features/session/begin';
-import { installTemplate, WORKOUT_TEMPLATES, type WorkoutTemplate } from '@/features/workouts/templates';
+import { WORKOUT_TEMPLATES } from '@/features/workouts/templates';
+import { useInstallTemplate } from '@/features/workouts/use-install-template';
 
 /** Home with no routines and no history yet. */
 export function FirstUse() {
   const theme = useTheme();
   const hasLocation = useCurrentLocation((s) => !!s.id);
-  const [installing, setInstalling] = useState<string | null>(null);
-
-  const applyTemplate = async (t: WorkoutTemplate) => {
-    setInstalling(t.key);
-    try {
-      const ids = await installTemplate(t);
-      if (ids.length === 1) router.push({ pathname: '/workout/[id]', params: { id: ids[0] } });
-      else router.push('/workouts');
-    } finally {
-      setInstalling(null);
-    }
-  };
+  const { installing, apply: applyTemplate } = useInstallTemplate();
 
   return (
     <View style={styles.section}>
