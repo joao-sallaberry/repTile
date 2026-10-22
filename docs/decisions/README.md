@@ -21,7 +21,7 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0001 | [React Native + Expo with development builds](0001-react-native-expo.md)    | Accepted | 2026-10-05 |
 | 0002 | [Local-first SQLite with sync-ready columns](0002-local-first-sqlite.md)    | Accepted | 2026-10-05 |
 | 0003 | [Timestamp-based timer engine](0003-timestamp-timer-engine.md)              | Accepted | 2026-10-05 |
-| 0004 | [Timer notifications with react-native-notify-kit](0004-timer-notifications.md) | Accepted | 2026-10-05 |
+| 0004 | [Timer notifications with react-native-notify-kit](0004-timer-notifications.md) | Partly superseded by 0018 | 2026-10-05 |
 | 0005 | [Set types and per-set targets](0005-set-types-per-set-targets.md)          | Accepted | 2026-10-16 |
 | 0006 | [Optional machines, N:N with locations and exercises](0006-machines-locations.md) | Accepted | 2026-10-16 |
 | 0007 | [Local low-res machine photos](0007-machine-photos.md)                      | Accepted | 2026-10-17 |
@@ -35,3 +35,4 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0015 | [Exercises list several equipment; the one used is recorded per set](0015-multiple-equipment.md) | Partly superseded by 0017 | 2026-10-18 |
 | 0016 | [Exercise illustrations from RepDB, downloaded on install](0016-exercise-illustrations.md) | Accepted | 2026-10-18 |
 | 0017 | ["Livre" (bodyweight) is one more equipment option](0017-livre-equipment.md) | Accepted | 2026-10-19 |
+| 0018 | [Background timer beeps play on the media stream](0018-beeps-on-media-stream.md) | Accepted | 2026-10-22 |

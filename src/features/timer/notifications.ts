@@ -14,7 +14,8 @@ import notifee, {
 
 import { formatDuration } from '@/lib/format';
 
-import { computeTimer, endsAt, timerCues, workStartsAt } from './engine';
+import { playCue } from './beeps';
+import { computeTimer, endsAt, timerCues, workStartsAt, type CueKind } from './engine';
 import { ensureTimerHydrated, useTimerStore, type ActiveTimer } from './store';
 
 /**
@@ -23,15 +24,19 @@ import { ensureTimerHydrated, useTimerStore, type ActiveTimer } from './store';
  * - While a timer is active, a *foreground service* shows an ongoing notification with
  *   Android's native chronometer (keeps counting even if JS is suspended) and action buttons.
  * - When the app goes to the background (or the screen turns off), we schedule AlarmManager
- *   notifications for the end of the timer and for each new interval — they beep even when
- *   the phone is in Doze or the app has been killed.
+ *   notifications for the end of the timer and for each new interval — they fire even when
+ *   the phone is in Doze. Their channels only vibrate: when one is delivered, the app plays
+ *   the beep on the media stream (`playCue`), which reaches headphones playing music while a
+ *   notification sound doesn't (ADR 0018).
  * - While the app is open, those scheduled notifications are cancelled and the beeps come
- *   from the app itself (see `cue-player.ts`), so nothing plays twice.
+ *   from `cue-player.ts`, so nothing plays twice.
  */
 
 const CHANNEL_ONGOING = 'timer-ongoing';
-const CHANNEL_END = 'timer-end';
-const CHANNEL_CUE = 'timer-cue';
+// Channel sounds can't be changed once created, so the silent channels got new ids (ADR 0018).
+const CHANNEL_END = 'timer-end-v2';
+const CHANNEL_CUE = 'timer-cue-v2';
+const OLD_CHANNELS = ['timer-end', 'timer-cue'];
 
 const ONGOING_ID = 'timer-ongoing';
 const END_ID = 'timer-end';
@@ -45,6 +50,7 @@ const isAndroid = Platform.OS === 'android';
 
 export async function setupNotificationChannels() {
   if (!isAndroid) return;
+  await Promise.all(OLD_CHANNELS.map((id) => notifee.deleteChannel(id)));
   await notifee.createChannels([
     {
       id: CHANNEL_ONGOING,
@@ -59,7 +65,6 @@ export async function setupNotificationChannels() {
       description: 'Aviso quando o descanso ou o WOD termina',
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
-      sound: 'beep_end',
       vibration: true,
       vibrationPattern: [300, 400, 200, 400],
       bypassDnd: true,
@@ -70,7 +75,6 @@ export async function setupNotificationChannels() {
       description: 'Bipe a cada novo intervalo (EMOM) e no início do WOD',
       importance: AndroidImportance.HIGH,
       visibility: AndroidVisibility.PUBLIC,
-      sound: 'beep_go',
       vibration: true,
       vibrationPattern: [300, 300],
     },
@@ -183,6 +187,7 @@ async function scheduleBackgroundAlerts(timer: ActiveTimer) {
         id: END_ID,
         title: isRest(timer) ? 'Descanso terminou!' : 'Tempo!',
         body: isRest(timer) ? `${timer.label} · próxima série` : timer.label,
+        data: { cue: 'end' satisfies CueKind },
         android: {
           channelId: CHANNEL_END,
           category: AndroidCategory.ALARM,
@@ -215,6 +220,7 @@ async function scheduleBackgroundAlerts(timer: ActiveTimer) {
               ? `Descanso · round ${snap.round}/${snap.roundCount}`
               : `Round ${snap.round}/${snap.roundCount}`,
         body: timer.label,
+        data: { cue: cue.kind },
         android: {
           channelId: CHANNEL_CUE,
           importance: AndroidImportance.HIGH,
@@ -266,7 +272,10 @@ export async function handleTimerEvent({ type, detail }: Event) {
         timer.togglePause();
         break;
     }
-  } else if (type === EventType.DELIVERED && detail.notification?.id === END_ID) {
+  } else if (type === EventType.DELIVERED && typeof detail.notification?.data?.cue === 'string') {
+    // The channel vibrates; the beep goes to the media stream so headphones get it too.
+    playCue(detail.notification.data.cue as CueKind, { haptics: false });
+    if (detail.notification.id !== END_ID) return;
     await ensureTimerHydrated();
     const active = useTimerStore.getState().active;
     // Rest is over: stop the timer. WOD is over: keep it so the user can log the result.

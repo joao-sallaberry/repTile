@@ -1,6 +1,6 @@
 # 0004. Timer notifications with react-native-notify-kit
 
-- **Status:** Accepted
+- **Status:** Partly superseded by 0018
 - **Date:** 2026-10-05
 
 ## Context
