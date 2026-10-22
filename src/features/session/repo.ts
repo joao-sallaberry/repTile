@@ -522,6 +522,8 @@ export type SessionResult = {
   /** Adjusted start/end times (ms); default: keep the start, end now. */
   startedAt?: number;
   finishedAt?: number;
+  /** The name shown in history; defaults to the routine's name when the session starts. */
+  name?: string;
   notes?: string | null;
 };
 

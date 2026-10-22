@@ -43,7 +43,7 @@ export default function SessionScreen() {
   const [finishOpen, setFinishOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [saveRoutine, setSaveRoutine] = useState(false);
-  const [routineName, setRoutineName] = useState('');
+  const [name, setName] = useState('');
   const [times, setTimes] = useState({ start: 0, end: 0 });
   const elapsed = useElapsed(session?.startedAt ?? 0);
 
@@ -53,7 +53,7 @@ export default function SessionScreen() {
 
   const save = async (result: SessionResult) => {
     await finishSession(session.id, result);
-    if (isFree && saveRoutine && routineName.trim()) await saveSessionAsRoutine(session.id, routineName.trim());
+    if (isFree && saveRoutine && result.name) await saveSessionAsRoutine(session.id, result.name);
     stopTimerFor(session.id);
     router.replace({ pathname: '/summary/[id]', params: { id: session.id } });
   };
@@ -84,6 +84,7 @@ export default function SessionScreen() {
         session={session}
         onFinish={() => {
           setTimes(normalizeTimes(session.startedAt, Date.now()));
+          setName(session.name);
           setFinishOpen(true);
         }}
       />
@@ -91,6 +92,7 @@ export default function SessionScreen() {
         <Dialog visible={finishOpen} onDismiss={() => setFinishOpen(false)}>
           <Dialog.Title>Finalizar treino</Dialog.Title>
           <Dialog.Content>
+            <TextInput mode="outlined" label="Nome do treino" value={name} onChangeText={setName} style={styles.name} />
             <View style={styles.times}>
               <TimeField label="Início" value={times.start} onChange={(start) => setTimes((t) => normalizeTimes(start, t.end))} />
               <TimeField label="Término" value={times.end} onChange={(end) => setTimes((t) => normalizeTimes(t.start, end))} />
@@ -100,25 +102,23 @@ export default function SessionScreen() {
             </Text>
             <TextInput mode="outlined" label="Como foi? (opcional)" multiline value={notes} onChangeText={setNotes} />
             {isFree && (
-              <>
-                <Checkbox.Item
-                  label="Salvar como rotina"
-                  status={saveRoutine ? 'checked' : 'unchecked'}
-                  onPress={() => setSaveRoutine((v) => !v)}
-                  style={styles.checkbox}
-                />
-                {saveRoutine && (
-                  <TextInput mode="outlined" label="Nome da rotina" value={routineName} onChangeText={setRoutineName} />
-                )}
-              </>
+              // The new routine takes the workout's name.
+              <Checkbox.Item
+                label="Salvar como rotina"
+                status={saveRoutine ? 'checked' : 'unchecked'}
+                onPress={() => setSaveRoutine((v) => !v)}
+                style={styles.checkbox}
+              />
             )}
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setFinishOpen(false)}>Voltar</Button>
             <Button
               mode="contained"
-              disabled={isFree && saveRoutine && !routineName.trim()}
-              onPress={() => save({ notes: notes.trim() || null, startedAt: times.start, finishedAt: times.end })}>
+              disabled={!name.trim()}
+              onPress={() =>
+                save({ name: name.trim(), notes: notes.trim() || null, startedAt: times.start, finishedAt: times.end })
+              }>
               Finalizar
             </Button>
           </Dialog.Actions>
@@ -129,6 +129,7 @@ export default function SessionScreen() {
 }
 
 const styles = StyleSheet.create({
+  name: { marginBottom: 12 },
   checkbox: { paddingHorizontal: 0 },
   times: { flexDirection: 'row', gap: 8 },
   duration: { opacity: 0.7, marginTop: 6, marginBottom: 12 },
