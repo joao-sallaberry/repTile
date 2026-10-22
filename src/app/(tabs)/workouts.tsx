@@ -4,8 +4,9 @@ import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Card, Icon, IconButton, Searchbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
 import { FilterChips } from '@/components/filter-chips';
-import { PrimaryFab } from '@/components/primary-fab';import { useRoutines, type RoutineRow } from '@/features/home/queries';
-import { relativeDays, rotationOrder } from '@/features/home/stats';
+import { PrimaryFab } from '@/components/primary-fab';
+import { useRoutines, type RoutineRow } from '@/features/home/queries';
+import { relativeDays } from '@/features/home/stats';
 import { useLocations } from '@/features/places/queries';
 import { beginRoutine } from '@/features/session/begin';
 import { describeShape, isWod, workoutIcon } from '@/features/workouts/blocks';
@@ -37,12 +38,7 @@ export default function WorkoutsScreen() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
 
-  // Rotation order (ADR 0008): the first one is what Home suggests next.
-  const ordered = useMemo(
-    () => rotationOrder(routines, new Map(routines.flatMap((r) => (r.lastDoneAt ? [[r.id, r.lastDoneAt] as const] : [])))),
-    [routines],
-  );
-  const nextId = ordered[0]?.id;
+  const ordered = useMemo(() => [...routines].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')), [routines]);
   const shown = ordered.filter((r) => matches(r, filter, query));
 
   const routineLocations = locations.filter((l) => routines.some((r) => r.locationId === l.id));
@@ -82,21 +78,15 @@ export default function WorkoutsScreen() {
                 value={chipKey}
                 onChange={(key) => setFilter(chips.find((c) => c.key === key)!.filter)}
               />
-              <View style={styles.sectionHeader}>
-                <Text variant="titleMedium">Minhas rotinas</Text>
-                {count > 1 && (
-                  <Text variant="bodySmall" style={styles.muted}>
-                    a mais antiga primeiro
-                  </Text>
-                )}
-              </View>
+              <Text variant="titleMedium" style={styles.sectionHeader}>
+                Minhas rotinas
+              </Text>
             </View>
           ) : null
         }
         renderItem={({ item }) => (
           <RoutineCard
             routine={item}
-            next={item.id === nextId && count > 1}
             now={now}
             location={item.locationId ? locations.find((l) => l.id === item.locationId)?.name : undefined}
           />
@@ -123,15 +113,12 @@ export default function WorkoutsScreen() {
   );
 }
 
-/** One routine: icon, shape, last time done, its exercises and location, with ▶ to start it. The next in the rotation stands out. */
-function RoutineCard({ routine: r, next, now, location }: { routine: RoutineRow; next: boolean; now: number; location?: string }) {
+/** One routine: icon, shape, last time done, its exercises and location, with ▶ to start it. */
+function RoutineCard({ routine: r, now, location }: { routine: RoutineRow; now: number; location?: string }) {
   const theme = useTheme();
   const plain = hasStrength(r);
   return (
-    <Card
-      mode="contained"
-      onPress={() => router.push({ pathname: '/workout/[id]', params: { id: r.id } })}
-      style={next ? { backgroundColor: '#23140A', borderColor: theme.colors.primaryContainer, borderWidth: 1 } : undefined}>
+    <Card mode="contained" onPress={() => router.push({ pathname: '/workout/[id]', params: { id: r.id } })}>
       <View style={styles.row}>
         <View
           style={[
@@ -145,13 +132,6 @@ function RoutineCard({ routine: r, next, now, location }: { routine: RoutineRow;
           />
         </View>
         <View style={styles.text}>
-          {next && (
-            <Text
-              variant="labelSmall"
-              style={[styles.tag, { backgroundColor: theme.colors.primaryContainer, color: theme.colors.onPrimaryContainer }]}>
-              PRÓXIMO
-            </Text>
-          )}
           <Text variant="titleSmall">{r.name}</Text>
           <Text variant="bodySmall" style={styles.muted}>
             {describeShape(r.blocks)} · {relativeDays(r.lastDoneAt, now)}
@@ -173,8 +153,8 @@ function RoutineCard({ routine: r, next, now, location }: { routine: RoutineRow;
         <IconButton
           icon="play"
           mode="contained"
-          containerColor={next ? theme.colors.primary : PLAY_TINT}
-          iconColor={next ? theme.colors.onPrimary : theme.colors.primary}
+          containerColor={PLAY_TINT}
+          iconColor={theme.colors.primary}
           size={22}
           accessibilityLabel={`Iniciar ${r.name}`}
           onPress={() => beginRoutine(r.id)}
@@ -224,12 +204,11 @@ const styles = StyleSheet.create({
   appTitle: { fontWeight: '700' },
   list: { padding: 12, paddingTop: 0, paddingBottom: 104 },
   top: { gap: 12, paddingBottom: 8, paddingHorizontal: 4 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 8 },
+  sectionHeader: { marginTop: 8 },
   gap: { height: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingLeft: 14, paddingRight: 4 },
   icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   text: { flex: 1, gap: 3 },
-  tag: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, overflow: 'hidden', letterSpacing: 0.6 },
   muted: { opacity: 0.7 },
   faint: { opacity: 0.5 },
   place: { flexDirection: 'row', alignItems: 'center', gap: 4 },
