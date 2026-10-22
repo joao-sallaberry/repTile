@@ -36,3 +36,4 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0016 | [Exercise illustrations from RepDB, downloaded on install](0016-exercise-illustrations.md) | Accepted | 2026-10-18 |
 | 0017 | ["Livre" (bodyweight) is one more equipment option](0017-livre-equipment.md) | Accepted | 2026-10-19 |
 | 0018 | [Background timer beeps play on the media stream](0018-beeps-on-media-stream.md) | Accepted | 2026-10-22 |
+| 0019 | [Drag to reorder with a hand-written list on Reanimated](0019-drag-to-reorder.md) | Accepted | 2026-10-22 |

@@ -12,6 +12,7 @@ import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
 import { MachineThumb } from '@/components/machine-thumb';
 import { NumberField } from '@/components/number-field';
+import { canReorder, ReorderSheet, type ReorderGroup } from '@/components/reorder-sheet';
 import { SetBadge } from '@/components/set-badge';
 import { SetTypeDialog } from '@/components/set-type-dialog';
 import { db } from '@/db/client';
@@ -20,7 +21,7 @@ import { useCurrentLocation } from '@/features/places/current';
 import { useLocation, useMachineMap } from '@/features/places/queries';
 import { startTimer } from '@/features/timer/start';
 import { useTimerStore } from '@/features/timer/store';
-import { BLOCK_KIND_ICON, BLOCK_KIND_LABEL } from '@/features/workouts/blocks';
+import { BLOCK_KIND_ICON, BLOCK_KIND_LABEL, describeBlockFormat } from '@/features/workouts/blocks';
 import { defaultEquipment, equipmentText, hasStation, stationNoun } from '@/features/workouts/equipment';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDuration, formatWeight } from '@/lib/format';
@@ -35,6 +36,7 @@ import {
   previousSessionSets,
   removeExercise,
   removeSet,
+  reorderSession,
   setExerciseEquipment,
   setExerciseMachine,
   setSessionLocation,
@@ -57,6 +59,7 @@ export function SessionView({ session, onFinish }: Props) {
   const [pickerFor, setPickerFor] = useState<string | null>(null);
   const [locationOpen, setLocationOpen] = useState(false);
   const [blockMenuOpen, setBlockMenuOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
 
   const { data: blocks } = useLiveQuery(
     db
@@ -91,6 +94,21 @@ export function SessionView({ session, onFinish }: Props) {
     .filter((s) => countsTowardStats(s.type))
     .reduce((acc, s) => acc + (s.weight ?? 0) * (s.reps ?? 0), 0);
   const isEmpty = sets.length === 0;
+
+  // "Reordenar": each block with its exercises, identified by their position.
+  const reorderGroups: ReorderGroup<string, number>[] = blocks.map((b) => ({
+    key: b.id,
+    title: describeBlockFormat(b) ?? BLOCK_KIND_LABEL[b.kind],
+    icon: BLOCK_KIND_ICON[b.kind],
+    value: b.id,
+    items: [...new Map((setsByBlock.get(b.id) ?? []).map((s) => [s.position, s.exerciseId])).entries()].map(
+      ([position, exerciseId]) => ({
+        key: String(position),
+        title: exerciseMap.get(exerciseId)?.name ?? 'Exercício',
+        value: position,
+      }),
+    ),
+  }));
 
   const onToggle = async (set: SessionSet) => {
     if (set.completedAt) {
@@ -175,18 +193,36 @@ export function SessionView({ session, onFinish }: Props) {
             </View>
           );
         })}
-        <Menu
-          visible={blockMenuOpen}
-          onDismiss={() => setBlockMenuOpen(false)}
-          anchor={
-            <Button icon="plus-box-multiple-outline" mode="outlined" onPress={() => setBlockMenuOpen(true)} contentStyle={styles.bigBtn}>
-              Adicionar bloco
-            </Button>
-          }>
-          {BLOCK_KINDS.map((k) => (
-            <Menu.Item key={k} leadingIcon={BLOCK_KIND_ICON[k]} title={BLOCK_KIND_LABEL[k]} onPress={() => addBlock(k)} />
-          ))}
-        </Menu>
+        <View style={styles.blockActions}>
+          <View style={styles.flex}>
+            <Menu
+              visible={blockMenuOpen}
+              onDismiss={() => setBlockMenuOpen(false)}
+              anchor={
+                <Button
+                  icon="plus-box-multiple-outline"
+                  mode="outlined"
+                  onPress={() => setBlockMenuOpen(true)}
+                  contentStyle={styles.bigBtn}>
+                  Adicionar bloco
+                </Button>
+              }>
+              {BLOCK_KINDS.map((k) => (
+                <Menu.Item key={k} leadingIcon={BLOCK_KIND_ICON[k]} title={BLOCK_KIND_LABEL[k]} onPress={() => addBlock(k)} />
+              ))}
+            </Menu>
+          </View>
+          {canReorder(reorderGroups) && (
+            <IconButton
+              icon="swap-vertical"
+              mode="outlined"
+              size={24}
+              style={styles.noMargin}
+              accessibilityLabel="Reordenar exercícios e blocos"
+              onPress={() => setReorderOpen(true)}
+            />
+          )}
+        </View>
       </ScrollView>
       <View style={styles.footer}>
         <Button mode="contained" icon="flag-checkered" onPress={onFinish} contentStyle={styles.bigBtn} style={styles.flex}>
@@ -207,6 +243,17 @@ export function SessionView({ session, onFinish }: Props) {
           setSessionLocation(session.id, id);
           useCurrentLocation.getState().set(id);
         }}
+      />
+      <ReorderSheet
+        visible={reorderOpen}
+        groups={reorderGroups}
+        onDismiss={() => setReorderOpen(false)}
+        onSave={(groups) =>
+          reorderSession(
+            session.id,
+            groups.map((g) => ({ blockId: g.value, positions: g.items.map((i) => i.value) })),
+          )
+        }
       />
       <Snackbar visible={!!prMessage} onDismiss={() => setPrMessage(null)} duration={4000}>
         {prMessage}
@@ -552,5 +599,6 @@ const styles = StyleSheet.create({
   input: { textAlign: 'center' },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, paddingTop: 6 },
   bigBtn: { height: 48 },
+  blockActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   footer: { flexDirection: 'row', padding: 16, paddingTop: 8 },
 });

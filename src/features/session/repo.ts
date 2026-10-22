@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNotNull, isNull, max, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNotNull, isNull, lt, max, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import {
@@ -437,6 +437,30 @@ export async function removeExercise(sessionId: string, position: number) {
     .update(sessionSets)
     .set({ deletedAt: Date.now(), ...touched() })
     .where(and(eq(sessionSets.sessionId, sessionId), eq(sessionSets.position, position), isNull(sessionSets.deletedAt)));
+}
+
+/**
+ * Applies the order picked in "Reordenar": the blocks in `order`, each listing its exercises by
+ * their current `position`. Positions are renumbered across the session in that order.
+ */
+export async function reorderSession(sessionId: string, order: { blockId: string; positions: number[] }[]) {
+  const moves = order.flatMap((b) => b.positions).map((from, to) => [from, to] as const);
+  await db.transaction(async (tx) => {
+    for (const [i, b] of order.entries()) {
+      await tx.update(sessionBlocks).set({ position: i, ...touched() }).where(eq(sessionBlocks.id, b.blockId));
+    }
+    // Through negative numbers first, so two exercises never share a position midway.
+    for (const [from, to] of moves) {
+      await tx
+        .update(sessionSets)
+        .set({ position: -1 - to, ...touched() })
+        .where(and(eq(sessionSets.sessionId, sessionId), eq(sessionSets.position, from)));
+    }
+    await tx
+      .update(sessionSets)
+      .set({ position: sql`-1 - ${sessionSets.position}` })
+      .where(and(eq(sessionSets.sessionId, sessionId), lt(sessionSets.position, 0)));
+  });
 }
 
 export async function removeSet(id: string) {

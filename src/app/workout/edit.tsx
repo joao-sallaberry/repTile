@@ -21,6 +21,7 @@ import { ExercisePicker } from '@/components/exercise-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
 import { NumberField } from '@/components/number-field';
+import { canReorder, ReorderSheet, type ReorderGroup } from '@/components/reorder-sheet';
 import { SetBadge } from '@/components/set-badge';
 import { SetTypeDialog } from '@/components/set-type-dialog';
 import type { BlockKind, Exercise, SetType } from '@/db/schema';
@@ -44,13 +45,6 @@ import {
 
 type ItemRef = { block: number; item: number };
 
-function move<T>(list: T[], index: number, delta: number): T[] {
-  const next = [...list];
-  const [it] = next.splice(index, 1);
-  next.splice(index + delta, 0, it);
-  return next;
-}
-
 export default function EditWorkoutScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [draft, setDraft] = useState<WorkoutDraft | null>(id ? null : emptyWorkout());
@@ -58,6 +52,7 @@ export default function EditWorkoutScreen() {
   const [saving, setSaving] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
   const [blockMenuOpen, setBlockMenuOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
   const [machineFor, setMachineFor] = useState<ItemRef | null>(null);
   const exerciseMap = useExerciseMap();
   const location = useLocation(draft?.locationId);
@@ -108,6 +103,18 @@ export default function EditWorkoutScreen() {
     }
   };
 
+  const reorderGroups: ReorderGroup<BlockDraft, WorkoutItemDraft>[] = draft.blocks.map((b, bi) => ({
+    key: `b${bi}`,
+    title: describeBlockFormat(b) ?? BLOCK_KIND_LABEL[b.kind],
+    icon: BLOCK_KIND_ICON[b.kind],
+    value: b,
+    items: b.items.map((it, i) => ({
+      key: `${bi}-${i}`,
+      title: exerciseMap.get(it.exerciseId)?.name ?? 'Exercício removido',
+      value: it,
+    })),
+  }));
+
   const machineItem = machineFor ? draft.blocks[machineFor.block]?.items[machineFor.item] : undefined;
 
   return (
@@ -150,11 +157,9 @@ export default function EditWorkoutScreen() {
           <BlockEditor
             key={block.id ?? `new-${bi}`}
             block={block}
-            index={bi}
             count={draft.blocks.length}
             exerciseMap={exerciseMap}
             onChange={(patch) => updateBlock(bi, patch)}
-            onMove={(delta) => update({ blocks: move(draft.blocks, bi, delta) })}
             onRemove={() => update({ blocks: draft.blocks.filter((_, i) => i !== bi) })}
             onAddItem={() => setPickerFor(bi)}
             onPickMachine={(item) => setMachineFor({ block: bi, item })}
@@ -177,6 +182,15 @@ export default function EditWorkoutScreen() {
               <Menu.Item key={k} leadingIcon={BLOCK_KIND_ICON[k]} title={BLOCK_KIND_LABEL[k]} onPress={() => addBlock(k)} />
             ))}
           </Menu>
+          {canReorder(reorderGroups) && (
+            <IconButton
+              icon="swap-vertical"
+              mode="outlined"
+              style={styles.compactIcon}
+              accessibilityLabel="Reordenar exercícios e blocos"
+              onPress={() => setReorderOpen(true)}
+            />
+          )}
         </View>
         {errors.map((e) => (
           <HelperText key={e} type="info">
@@ -185,6 +199,12 @@ export default function EditWorkoutScreen() {
         ))}
       </ScrollView>
 
+      <ReorderSheet
+        visible={reorderOpen}
+        groups={reorderGroups}
+        onDismiss={() => setReorderOpen(false)}
+        onSave={(groups) => update({ blocks: groups.map((g) => ({ ...g.value, items: g.items.map((i) => i.value) })) })}
+      />
       <ExercisePicker visible={pickerFor != null} onDismiss={() => setPickerFor(null)} onPick={addExercise} />
       <LocationPicker
         visible={locationOpen}
@@ -213,21 +233,18 @@ export default function EditWorkoutScreen() {
 /** One block of the routine: plain exercises (one card each) or a WOD with its settings and movements. */
 function BlockEditor({
   block,
-  index,
   count,
   exerciseMap,
   onChange,
-  onMove,
   onRemove,
   onAddItem,
   onPickMachine,
 }: {
   block: BlockDraft;
-  index: number;
+  /** Number of blocks in the routine (a lone exercises block has no header). */
   count: number;
   exerciseMap: Map<string, Exercise>;
   onChange: (patch: Partial<BlockDraft>) => void;
-  onMove: (delta: number) => void;
   onRemove: () => void;
   onAddItem: () => void;
   onPickMachine: (item: number) => void;
@@ -239,40 +256,18 @@ function BlockEditor({
     onChange({ items: block.items.map((it, j) => (j === i ? { ...it, ...patch } : it)) });
 
   const blockActions = (
-    <View style={styles.row}>
-      <IconButton
-        icon="arrow-up"
-        size={20}
-        style={styles.compactIcon}
-        accessibilityLabel="Mover bloco para cima"
-        disabled={index === 0}
-        onPress={() => onMove(-1)}
-      />
-      <IconButton
-        icon="arrow-down"
-        size={20}
-        style={styles.compactIcon}
-        accessibilityLabel="Mover bloco para baixo"
-        disabled={index === count - 1}
-        onPress={() => onMove(1)}
-      />
-      <IconButton icon="delete-outline" size={20} style={styles.compactIcon} accessibilityLabel="Remover bloco" onPress={onRemove} />
-    </View>
+    <IconButton icon="delete-outline" size={20} style={styles.compactIcon} accessibilityLabel="Remover bloco" onPress={onRemove} />
   );
 
   const items = block.items.map((item, i) => {
     const ex = exerciseMap.get(item.exerciseId);
     const actions = (
-      <View style={styles.row}>
-        <IconButton icon="arrow-up" size={18} disabled={i === 0} onPress={() => onChange({ items: move(block.items, i, -1) })} />
-        <IconButton
-          icon="arrow-down"
-          size={18}
-          disabled={i === block.items.length - 1}
-          onPress={() => onChange({ items: move(block.items, i, 1) })}
-        />
-        <IconButton icon="delete-outline" size={18} onPress={() => onChange({ items: block.items.filter((_, j) => j !== i) })} />
-      </View>
+      <IconButton
+        icon="delete-outline"
+        size={18}
+        accessibilityLabel={`Remover ${ex?.name ?? 'exercício'}`}
+        onPress={() => onChange({ items: block.items.filter((_, j) => j !== i) })}
+      />
     );
     if (wod) {
       return (
