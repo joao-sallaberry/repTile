@@ -241,6 +241,8 @@ async function render(timer: ActiveTimer | null, appState: AppStateStatus) {
     if (!timer) await cancelScheduled();
     return;
   }
+  // A timer is running, so any "Descanso terminou!" / "Tempo!" still shown belongs to an earlier one.
+  await notifee.cancelDisplayedNotifications([END_ID]);
   await showOngoing(timer);
   await cancelScheduled();
   if (appState !== 'active' && timer.clock.pausedAt == null) {
