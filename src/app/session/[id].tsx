@@ -10,6 +10,7 @@ import { TimeField } from '@/components/time-field';
 import { db } from '@/db/client';
 import { sessions } from '@/db/schema';
 import { deleteSession, finishSession, saveSessionAsRoutine, type SessionResult } from '@/features/session/repo';
+import { normalizeTimes } from '@/features/session/times';
 import { SessionView } from '@/features/session/session-view';
 import { useTimerStore } from '@/features/timer/store';
 import { formatDuration } from '@/lib/format';
@@ -21,15 +22,6 @@ function useElapsed(since: number) {
     return () => clearInterval(id);
   }, []);
   return Math.floor((now - since) / 1000);
-}
-
-const DAY_MS = 24 * 3600 * 1000;
-
-/** Keeps the end after the start and within a day of it (a picked time keeps its original day). */
-function normalizeTimes(start: number, end: number) {
-  while (end <= start) end += DAY_MS;
-  while (end - start > DAY_MS) end -= DAY_MS;
-  return { start, end };
 }
 
 function stopTimerFor(sessionId: string) {

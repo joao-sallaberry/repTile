@@ -555,6 +555,11 @@ export async function finishSession(id: string, { finishedAt = Date.now(), ...re
   await db.update(sessions).set({ ...result, finishedAt, ...touched() }).where(eq(sessions.id, id));
 }
 
+/** Changes when a finished session started and ended (Histórico › Editar horários). */
+export async function setSessionTimes(id: string, startedAt: number, finishedAt: number) {
+  await db.update(sessions).set({ startedAt, finishedAt, ...touched() }).where(eq(sessions.id, id));
+}
+
 export async function deleteSession(id: string) {
   const now = Date.now();
   await db.transaction(async (tx) => {
