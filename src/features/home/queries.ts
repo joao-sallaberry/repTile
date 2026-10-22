@@ -220,6 +220,19 @@ export function useSessionsBetween(start: number, end: number): RecentSession[] 
   return useSessionStats(list);
 }
 
+/** Every finished run of one routine, newest first, with the same stats as `useRecentSessions`. */
+export function useRoutineSessions(workoutId: string): RecentSession[] {
+  const { data: list } = useLiveQuery(
+    db
+      .select()
+      .from(sessions)
+      .where(and(finished, eq(sessions.workoutId, workoutId)))
+      .orderBy(desc(sessions.startedAt)),
+    [workoutId],
+  );
+  return useSessionStats(list);
+}
+
 /** How many sessions were finished, and when the first one started. */
 export function useHistoryOverview(): { count: number; firstAt: number | null } {
   const { data } = useLiveQuery(db.select({ n: count(), first: min(sessions.startedAt) }).from(sessions).where(finished));

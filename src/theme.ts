@@ -1,6 +1,9 @@
 import { DarkTheme as NavDarkTheme, type Theme as NavTheme } from 'expo-router';
 import { MD3DarkTheme, type MD3Theme } from 'react-native-paper';
 
+/** Dark orange behind strength icons and the ▶ of routine cards. */
+export const STRENGTH_TINT = '#2B1A0C';
+
 export const theme: MD3Theme = {
   ...MD3DarkTheme,
   colors: {

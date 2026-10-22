@@ -13,11 +13,10 @@ import { describeShape, isWod, workoutIcon } from '@/features/workouts/blocks';
 import { WORKOUT_TEMPLATES } from '@/features/workouts/templates';
 import { useInstallTemplate } from '@/features/workouts/use-install-template';
 import { normalizeSearch } from '@/lib/search';
+import { STRENGTH_TINT } from '@/theme';
 
 type Filter = { kind: 'all' } | { kind: 'strength' } | { kind: 'wod' } | { kind: 'location'; id: string };
 
-/** Dark orange behind the ▶ and the dumbbell icon (the design's `#2B1A0C`). */
-const PLAY_TINT = '#2B1A0C';
 
 const hasStrength = (r: RoutineRow) => !r.blocks.length || r.blocks.some((b) => b.kind === 'exercises');
 const hasWod = (r: RoutineRow) => r.blocks.some((b) => isWod(b.kind));
@@ -123,7 +122,7 @@ function RoutineCard({ routine: r, now, location }: { routine: RoutineRow; now: 
         <View
           style={[
             styles.icon,
-            { backgroundColor: plain ? PLAY_TINT : theme.colors.secondaryContainer },
+            { backgroundColor: plain ? STRENGTH_TINT : theme.colors.secondaryContainer },
           ]}>
           <Icon
             source={workoutIcon(r.blocks.map((b) => b.kind))}
@@ -153,7 +152,7 @@ function RoutineCard({ routine: r, now, location }: { routine: RoutineRow; now: 
         <IconButton
           icon="play"
           mode="contained"
-          containerColor={PLAY_TINT}
+          containerColor={STRENGTH_TINT}
           iconColor={theme.colors.primary}
           size={22}
           accessibilityLabel={`Iniciar ${r.name}`}
