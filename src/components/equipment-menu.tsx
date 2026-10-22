@@ -13,10 +13,13 @@ export function EquipmentMenu({
   options,
   value,
   onChange,
+  pill,
 }: {
   options: Equipment[];
   value: Equipment;
   onChange: (e: Equipment) => void;
+  /** Outlined pill (routine editor) instead of plain text. */
+  pill?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   if (options.length < 2) return null;
@@ -29,9 +32,9 @@ export function EquipmentMenu({
           onPress={() => setOpen(true)}
           accessibilityRole="button"
           accessibilityLabel={`${equipmentLabel(value)}. Toque para trocar o equipamento`}
-          style={styles.chip}>
+          style={pill ? styles.pill : styles.chip}>
           <View style={styles.row}>
-            <Text variant="bodySmall" style={styles.muted}>
+            <Text variant={pill ? 'labelLarge' : 'bodySmall'} style={pill ? undefined : styles.muted}>
               {equipmentLabel(value)}
             </Text>
             <IconButton icon="menu-down" size={16} style={styles.icon} />
@@ -55,6 +58,16 @@ export function EquipmentMenu({
 
 const styles = StyleSheet.create({
   chip: { alignSelf: 'flex-start', borderRadius: 8, minHeight: 32, justifyContent: 'center', paddingLeft: 4 },
+  pill: {
+    alignSelf: 'flex-start',
+    borderRadius: 17,
+    minHeight: 34,
+    justifyContent: 'center',
+    paddingLeft: 12,
+    paddingRight: 4,
+    borderWidth: 1,
+    borderColor: '#3A3F49',
+  },
   row: { flexDirection: 'row', alignItems: 'center' },
   muted: { opacity: 0.7 },
   icon: { margin: 0, width: 20 },

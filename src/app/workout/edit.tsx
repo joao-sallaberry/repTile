@@ -1,13 +1,15 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native';
 import {
   Button,
   Card,
+  Dialog,
   HelperText,
+  Icon,
   IconButton,
   List,
-  Menu,
+  Portal,
   Text,
   TextInput,
   TouchableRipple,
@@ -17,6 +19,7 @@ import {
 import { BlockConfigFields } from '@/components/block-config-fields';
 import { DurationField } from '@/components/duration-field';
 import { EquipmentMenu } from '@/components/equipment-menu';
+import { ExerciseThumb } from '@/components/exercise-media';
 import { ExercisePicker } from '@/components/exercise-picker';
 import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
@@ -34,6 +37,7 @@ import {
   emptyBlock,
   emptyItem,
   emptyWorkout,
+  deleteWorkout,
   getWorkoutDraft,
   newSet,
   saveWorkout,
@@ -42,6 +46,7 @@ import {
   type WorkoutDraft,
   type WorkoutItemDraft,
 } from '@/features/workouts/repo';
+import { formatDuration } from '@/lib/format';
 
 type ItemRef = { block: number; item: number };
 
@@ -51,7 +56,6 @@ export default function EditWorkoutScreen() {
   const [pickerFor, setPickerFor] = useState<number | 'new' | null>(null);
   const [saving, setSaving] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
-  const [blockMenuOpen, setBlockMenuOpen] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [machineFor, setMachineFor] = useState<ItemRef | null>(null);
   const exerciseMap = useExerciseMap();
@@ -86,7 +90,6 @@ export default function EditWorkoutScreen() {
   };
 
   const addBlock = (kind: BlockKind) => {
-    setBlockMenuOpen(false);
     update({ blocks: [...draft.blocks, emptyBlock(kind)] });
     setPickerFor(draft.blocks.length);
   };
@@ -115,13 +118,32 @@ export default function EditWorkoutScreen() {
     })),
   }));
 
+  const confirmDelete = () =>
+    Alert.alert('Excluir rotina?', 'O histórico de execuções será mantido.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: async () => {
+          if (id) await deleteWorkout(id);
+          router.dismissAll();
+        },
+      },
+    ]);
+  const hasExercisesBlock = draft.blocks.some((b) => b.kind === 'exercises');
+
   const machineItem = machineFor ? draft.blocks[machineFor.block]?.items[machineFor.item] : undefined;
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior="padding">
       <Stack.Screen
         options={{
-          title: id ? 'Editar treino' : 'Novo treino',
+          title: id ? 'Editar rotina' : 'Nova rotina',
+          headerLeft: () => (
+            <Button compact onPress={() => router.back()} textColor={theme.colors.onSurfaceVariant}>
+              Cancelar
+            </Button>
+          ),
           headerRight: () => (
             <Button mode="contained" onPress={save} disabled={errors.length > 0 || saving} loading={saving}>
               Salvar
@@ -130,7 +152,7 @@ export default function EditWorkoutScreen() {
         }}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <TextInput mode="outlined" label="Nome do treino" value={draft.name} onChangeText={(name) => update({ name })} />
+        <TextInput mode="outlined" label="Nome" value={draft.name} onChangeText={(name) => update({ name })} />
 
         <TouchableRipple
           onPress={() => setLocationOpen(true)}
@@ -153,6 +175,17 @@ export default function EditWorkoutScreen() {
           onChangeText={(notes) => update({ notes: notes || null })}
         />
 
+        <View style={styles.sectionHeader}>
+          <Text variant="titleMedium" style={styles.flex}>
+            Exercícios
+          </Text>
+          {canReorder(reorderGroups) && (
+            <Button compact mode="outlined" icon="swap-vertical" onPress={() => setReorderOpen(true)}>
+              Reordenar
+            </Button>
+          )}
+        </View>
+
         {draft.blocks.map((block, bi) => (
           <BlockEditor
             key={block.id ?? `new-${bi}`}
@@ -166,37 +199,41 @@ export default function EditWorkoutScreen() {
           />
         ))}
 
-        <View style={styles.row}>
-          <Button icon="plus" mode="outlined" style={styles.flex} onPress={() => setPickerFor('new')}>
-            Exercício
-          </Button>
-          <Menu
-            visible={blockMenuOpen}
-            onDismiss={() => setBlockMenuOpen(false)}
-            anchor={
-              <Button icon="plus-box-multiple-outline" mode="outlined" onPress={() => setBlockMenuOpen(true)}>
-                Bloco
-              </Button>
-            }>
+        {!hasExercisesBlock && <DashedButton label="Adicionar exercício" onPress={() => setPickerFor('new')} />}
+
+        <View style={styles.addBlock}>
+          <Text variant="titleSmall" style={styles.muted}>
+            Adicionar bloco
+          </Text>
+          <View style={styles.row}>
             {WOD_KINDS.map((k) => (
-              <Menu.Item key={k} leadingIcon={BLOCK_KIND_ICON[k]} title={BLOCK_KIND_LABEL[k]} onPress={() => addBlock(k)} />
+              <TouchableRipple
+                key={k}
+                borderless
+                accessibilityRole="button"
+                accessibilityLabel={`Adicionar bloco ${BLOCK_KIND_LABEL[k]}`}
+                onPress={() => addBlock(k)}
+                style={[styles.kind, { borderColor: theme.colors.outlineVariant }]}>
+                <View style={styles.kindInner}>
+                  <Icon source={BLOCK_KIND_ICON[k]} size={20} color={theme.colors.secondary} />
+                  <Text variant="labelMedium" numberOfLines={1}>
+                    {BLOCK_KIND_LABEL[k]}
+                  </Text>
+                </View>
+              </TouchableRipple>
             ))}
-          </Menu>
-          {canReorder(reorderGroups) && (
-            <IconButton
-              icon="swap-vertical"
-              mode="outlined"
-              style={styles.compactIcon}
-              accessibilityLabel="Reordenar exercícios e blocos"
-              onPress={() => setReorderOpen(true)}
-            />
-          )}
+          </View>
         </View>
         {errors.map((e) => (
           <HelperText key={e} type="info">
             {e}
           </HelperText>
         ))}
+        {id && (
+          <Button icon="delete-outline" textColor={theme.colors.error} style={styles.delete} onPress={confirmDelete}>
+            Excluir rotina
+          </Button>
+        )}
       </ScrollView>
 
       <ReorderSheet
@@ -285,32 +322,52 @@ function BlockEditor({
     }
     const equipment = item.equipment ?? defaultEquipment(ex);
     const choices = ex?.equipment ?? [];
+    const station = hasStation(equipment) || item.machineId != null;
+    const machine = item.machineId ? machineMap.get(item.machineId) : undefined;
     return (
       <Card key={item.id ?? `new-${i}`} mode="contained">
-        <Card.Title
-          title={ex?.name ?? 'Exercício removido'}
-          subtitle={
-            item.machineId
-              ? `⚙ ${machineMap.get(item.machineId)?.name ?? ''}`
-              : ex && (choices.length > 1 ? ex.category : `${ex.category} · ${equipmentText(ex)}`)
-          }
-          right={() => actions}
-        />
-        <Card.Content>
-          {(choices.length > 1 || hasStation(equipment) || item.machineId) && (
-            <View style={styles.equipmentRow}>
-              <EquipmentMenu
-                options={choices}
-                value={equipment}
-                onChange={(e) => setItem(i, { equipment: e, machineId: hasStation(e) ? item.machineId : null })}
-              />
-              {(hasStation(equipment) || item.machineId) && (
-                <Button compact icon="cog-outline" mode="text" style={styles.machineBtn} onPress={() => onPickMachine(i)}>
-                  {item.machineId ? `Trocar ${stationNoun(equipment)}` : `Sem ${stationNoun(equipment)} · adicionar`}
-                </Button>
-              )}
-            </View>
+        <View style={styles.cardHeader}>
+          <ExerciseThumb exerciseId={item.exerciseId} equipment={equipment} size={44} />
+          <View style={styles.flex}>
+            <Text variant="titleMedium" style={{ color: theme.colors.primary }} numberOfLines={2}>
+              {ex?.name ?? 'Exercício removido'}
+            </Text>
+            {ex && (
+              <Text variant="bodySmall" style={styles.muted}>
+                {choices.length > 1 || station ? ex.category : `${ex.category} · ${equipmentText(ex)}`}
+              </Text>
+            )}
+          </View>
+          {actions}
+        </View>
+        <View style={styles.pills}>
+          <EquipmentMenu
+            pill
+            options={choices}
+            value={equipment}
+            onChange={(e) => setItem(i, { equipment: e, machineId: hasStation(e) ? item.machineId : null })}
+          />
+          {station && (
+            <TouchableRipple
+              borderless
+              accessibilityRole="button"
+              accessibilityLabel={
+                machine ? `${stationNoun(equipment)}: ${machine.name}. Toque para trocar` : `Escolher ${stationNoun(equipment)}`
+              }
+              onPress={() => onPickMachine(i)}
+              style={[styles.pill, styles.shrink, { backgroundColor: theme.colors.elevation.level3 }]}>
+              <View style={styles.pillInner}>
+                <Icon source="cog-outline" size={15} color={theme.colors.onSurfaceVariant} />
+                <Text variant="labelLarge" numberOfLines={1} style={styles.shrink}>
+                  {machine?.name ?? `Sem ${stationNoun(equipment)} · adicionar`}
+                </Text>
+                <Icon source="menu-down" size={16} color={theme.colors.onSurfaceVariant} />
+              </View>
+            </TouchableRipple>
           )}
+          <RestPill value={item.restSec} onChange={(restSec) => setItem(i, { restSec })} />
+        </View>
+        <Card.Content>
           <ItemFields kind={block.kind} exercise={ex} item={item} onChange={(patch) => setItem(i, patch)} />
         </Card.Content>
       </Card>
@@ -322,30 +379,29 @@ function BlockEditor({
       <View style={styles.block}>
         {count > 1 && (
           <View style={styles.blockHeader}>
-            <Text variant="titleMedium" style={styles.flex}>
-              Exercícios
+            <Text variant="labelLarge" style={[styles.flex, styles.muted]}>
+              BLOCO DE EXERCÍCIOS
             </Text>
             {blockActions}
           </View>
         )}
         {items}
-        <Button icon="plus" mode="text" style={styles.addInBlock} onPress={onAddItem}>
-          Exercício neste bloco
-        </Button>
+        <DashedButton label="Adicionar exercício" onPress={onAddItem} />
       </View>
     );
   }
 
   return (
-    <Card mode="outlined" style={{ borderColor: theme.colors.secondary }}>
-      <Card.Title
-        title={describeBlockFormat(block)}
-        titleVariant="titleMedium"
-        titleNumberOfLines={2}
-        left={(p) => <List.Icon {...p} icon={BLOCK_KIND_ICON[block.kind]} color={theme.colors.secondary} />}
-        right={() => blockActions}
-        rightStyle={styles.titleRight}
-      />
+    <Card mode="outlined" style={{ borderColor: theme.colors.secondaryContainer }}>
+      <View style={styles.cardHeader}>
+        <View style={[styles.wodIcon, { backgroundColor: theme.colors.secondaryContainer }]}>
+          <Icon source={BLOCK_KIND_ICON[block.kind]} size={20} color={theme.colors.onSecondaryContainer} />
+        </View>
+        <Text variant="titleMedium" style={styles.flex} numberOfLines={2}>
+          {describeBlockFormat(block)}
+        </Text>
+        {blockActions}
+      </View>
       <Card.Content style={styles.wodContent}>
         <BlockConfigFields config={block} onChange={onChange} />
         <Text variant="labelLarge" style={styles.muted}>
@@ -382,11 +438,6 @@ function ItemFields({
     return (
       <View style={styles.setsBox}>
         <SetsEditor measure={measure} sets={item.sets} onChange={(sets) => onChange({ sets })} />
-        <DurationField
-          label="Descanso entre séries"
-          value={item.restSec}
-          onChange={(restSec) => onChange({ restSec })}
-        />
       </View>
     );
   }
@@ -506,7 +557,7 @@ function SetsEditor({
           Aquecimento
         </Button>
         <Button icon="plus" mode="contained-tonal" style={styles.flex} onPress={() => add('normal')}>
-          Série normal
+          Série
         </Button>
       </View>
       {typeFor != null && sets[typeFor] && (
@@ -519,6 +570,72 @@ function SetsEditor({
         />
       )}
     </View>
+  );
+}
+
+/** "+ Adicionar exercício": the dashed orange button at the end of an exercises block. */
+function DashedButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <TouchableRipple
+      borderless
+      accessibilityRole="button"
+      onPress={onPress}
+      style={[styles.dashed, { borderColor: theme.colors.primaryContainer }]}>
+      <View style={styles.pillInner}>
+        <Icon source="plus" size={18} color={theme.colors.primary} />
+        <Text variant="labelLarge" style={{ color: theme.colors.primary }}>
+          {label}
+        </Text>
+      </View>
+    </TouchableRipple>
+  );
+}
+
+/** "Descanso 1:30": the rest between sets, edited in a small dialog. */
+function RestPill({ value, onChange }: { value: number | null; onChange: (sec: number | null) => void }) {
+  const theme = useTheme();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const text = value ? formatDuration(value) : 'sem';
+  return (
+    <>
+      <TouchableRipple
+        borderless
+        accessibilityRole="button"
+        accessibilityLabel={`Descanso entre séries: ${text}. Toque para mudar`}
+        onPress={() => {
+          setDraft(value);
+          setOpen(true);
+        }}
+        style={[styles.pill, { backgroundColor: theme.colors.secondaryContainer }]}>
+        <View style={styles.pillInner}>
+          <Icon source="timer-outline" size={15} color={theme.colors.onSecondaryContainer} />
+          <Text variant="labelLarge" style={{ color: theme.colors.onSecondaryContainer }}>
+            Descanso {text}
+          </Text>
+        </View>
+      </TouchableRipple>
+      <Portal>
+        <Dialog visible={open} onDismiss={() => setOpen(false)}>
+          <Dialog.Title>Descanso entre séries</Dialog.Title>
+          <Dialog.Content>
+            <DurationField label="Descanso" value={draft} onChange={setDraft} />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setOpen(false)}>Cancelar</Button>
+            <Button
+              mode="contained"
+              onPress={() => {
+                onChange(draft);
+                setOpen(false);
+              }}>
+              OK
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </>
   );
 }
 
@@ -543,7 +660,6 @@ function cleanDraft(d: WorkoutDraft): WorkoutDraft {
 const styles = StyleSheet.create({
   // Card title actions: 40 px buttons so the block format keeps room next to them.
   compactIcon: { margin: 0 },
-  titleRight: { marginRight: 4 },
   flex: { flex: 1 },
   content: { padding: 16, gap: 12, paddingBottom: 48 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
@@ -557,11 +673,21 @@ const styles = StyleSheet.create({
   fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   field: { flexGrow: 1, flexBasis: 90 },
   locationBtn: { borderRadius: 12 },
-  machineBtn: { alignSelf: 'flex-start', marginLeft: -8, marginBottom: 4 },
-  equipmentRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
   setsBox: { gap: 8 },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   th: { fontSize: 11, fontWeight: '700', letterSpacing: 0.6, opacity: 0.7, textAlign: 'center' },
   colBadge: { width: 44, alignItems: 'center' },
   colRemove: { width: 36, margin: 0 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingHorizontal: 4 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 12, paddingLeft: 14, paddingRight: 4 },
+  wodIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  pill: { borderRadius: 17, minHeight: 34, justifyContent: 'center', paddingHorizontal: 12 },
+  pillInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  shrink: { flexShrink: 1 },
+  dashed: { borderWidth: 2, borderStyle: 'dashed', borderRadius: 14, minHeight: 48, justifyContent: 'center' },
+  addBlock: { gap: 8, marginTop: 12 },
+  kind: { flex: 1, borderWidth: 1, borderRadius: 14, minHeight: 64, justifyContent: 'center' },
+  kindInner: { alignItems: 'center', gap: 4, paddingHorizontal: 4 },
+  delete: { marginTop: 16 },
 });
