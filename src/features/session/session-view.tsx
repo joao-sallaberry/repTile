@@ -13,6 +13,7 @@ import { MachinePicker } from '@/components/machine-picker';
 import { MachineThumb } from '@/components/machine-thumb';
 import { NumberField } from '@/components/number-field';
 import { canReorder, ReorderSheet, type ReorderGroup } from '@/components/reorder-sheet';
+import { RestPicker } from '@/components/rest-picker';
 import { SetBadge } from '@/components/set-badge';
 import { SetTypeDialog } from '@/components/set-type-dialog';
 import { db } from '@/db/client';
@@ -37,6 +38,7 @@ import {
   removeExercise,
   removeSet,
   reorderSession,
+  setExerciseRest,
   setExerciseEquipment,
   setExerciseMachine,
   setSessionLocation,
@@ -299,6 +301,7 @@ function ExerciseCard({
   const [previous, setPrevious] = useState<PerformedSetRow[]>([]);
   const [machineOpen, setMachineOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [restOpen, setRestOpen] = useState(false);
   const [typeFor, setTypeFor] = useState<SessionSet | null>(null);
   const { exerciseId, machineId, position, restSec } = sets[0];
   const equipment = sets[0].equipment ?? defaultEquipment(exercise);
@@ -384,11 +387,14 @@ function ExerciseCard({
             )}
           </View>
         </View>
-        {restSec ? (
-          <Text variant="labelMedium" style={[styles.restChip, { backgroundColor: theme.colors.secondaryContainer }]}>
-            ⏱ {formatDuration(restSec)}
-          </Text>
-        ) : null}
+        <TouchableRipple
+          borderless
+          accessibilityRole="button"
+          accessibilityLabel={`Descanso entre séries: ${restSec ? formatDuration(restSec) : 'sem'}. Toque para mudar`}
+          onPress={() => setRestOpen(true)}
+          style={[styles.restChip, { backgroundColor: theme.colors.secondaryContainer }]}>
+          <Text variant="labelMedium">⏱ {restSec ? formatDuration(restSec) : 'sem'}</Text>
+        </TouchableRipple>
         <IconButton
           icon="delete-outline"
           size={20}
@@ -441,6 +447,12 @@ function ExerciseCard({
         currentMachineId={machineId}
         onDismiss={() => setMachineOpen(false)}
         onPick={(id) => setExerciseMachine(session.id, position, exerciseId, id)}
+      />
+      <RestPicker
+        visible={restOpen}
+        value={restSec}
+        onDismiss={() => setRestOpen(false)}
+        onSave={(sec) => setExerciseRest(session.id, position, sec)}
       />
       <Portal>
         <Dialog visible={mediaOpen} onDismiss={() => setMediaOpen(false)}>

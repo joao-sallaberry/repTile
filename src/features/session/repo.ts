@@ -350,6 +350,14 @@ export async function setExerciseEquipment(sessionId: string, position: number, 
     .where(and(eq(sessionSets.sessionId, sessionId), eq(sessionSets.position, position), isNull(sessionSets.deletedAt)));
 }
 
+/** Rest between sets for one exercise of the session (every set at that position). */
+export async function setExerciseRest(sessionId: string, position: number, restSec: number | null) {
+  await db
+    .update(sessionSets)
+    .set({ restSec, ...touched() })
+    .where(and(eq(sessionSets.sessionId, sessionId), eq(sessionSets.position, position), isNull(sessionSets.deletedAt)));
+}
+
 export async function setSessionLocation(sessionId: string, locationId: string | null) {
   await db.update(sessions).set({ locationId, ...touched() }).where(eq(sessions.id, sessionId));
 }

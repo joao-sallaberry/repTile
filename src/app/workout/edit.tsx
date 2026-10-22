@@ -4,12 +4,10 @@ import { Alert, KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react
 import {
   Button,
   Card,
-  Dialog,
   HelperText,
   Icon,
   IconButton,
   List,
-  Portal,
   Text,
   TextInput,
   TouchableRipple,
@@ -25,6 +23,7 @@ import { LocationPicker } from '@/components/location-picker';
 import { MachinePicker } from '@/components/machine-picker';
 import { NumberField } from '@/components/number-field';
 import { canReorder, ReorderSheet, type ReorderGroup } from '@/components/reorder-sheet';
+import { RestPicker } from '@/components/rest-picker';
 import { SetBadge } from '@/components/set-badge';
 import { SetTypeDialog } from '@/components/set-type-dialog';
 import type { BlockKind, Exercise, SetType } from '@/db/schema';
@@ -592,11 +591,10 @@ function DashedButton({ label, onPress }: { label: string; onPress: () => void }
   );
 }
 
-/** "Descanso 1:30": the rest between sets, edited in a small dialog. */
+/** "Descanso 1:30": the rest between sets, edited with `RestPicker`. */
 function RestPill({ value, onChange }: { value: number | null; onChange: (sec: number | null) => void }) {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(value);
   const text = value ? formatDuration(value) : 'sem';
   return (
     <>
@@ -604,10 +602,7 @@ function RestPill({ value, onChange }: { value: number | null; onChange: (sec: n
         borderless
         accessibilityRole="button"
         accessibilityLabel={`Descanso entre séries: ${text}. Toque para mudar`}
-        onPress={() => {
-          setDraft(value);
-          setOpen(true);
-        }}
+        onPress={() => setOpen(true)}
         style={[styles.pill, { backgroundColor: theme.colors.secondaryContainer }]}>
         <View style={styles.pillInner}>
           <Icon source="timer-outline" size={15} color={theme.colors.onSecondaryContainer} />
@@ -616,25 +611,7 @@ function RestPill({ value, onChange }: { value: number | null; onChange: (sec: n
           </Text>
         </View>
       </TouchableRipple>
-      <Portal>
-        <Dialog visible={open} onDismiss={() => setOpen(false)}>
-          <Dialog.Title>Descanso entre séries</Dialog.Title>
-          <Dialog.Content>
-            <DurationField label="Descanso" value={draft} onChange={setDraft} />
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setOpen(false)}>Cancelar</Button>
-            <Button
-              mode="contained"
-              onPress={() => {
-                onChange(draft);
-                setOpen(false);
-              }}>
-              OK
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <RestPicker visible={open} value={value} onDismiss={() => setOpen(false)} onSave={onChange} />
     </>
   );
 }
