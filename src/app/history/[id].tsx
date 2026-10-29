@@ -7,7 +7,7 @@ import { Button, Card, Chip, Dialog, Divider, Icon, IconButton, Menu, Portal, Te
 
 import { ExerciseThumb } from '@/components/exercise-media';
 import { SetBadge } from '@/components/set-badge';
-import { TimeField } from '@/components/time-field';
+import { DateField, TimeField } from '@/components/time-field';
 import { db } from '@/db/client';
 import { sessionBlocks, sessions, sessionSets, workouts, type SessionBlock, type SessionSet } from '@/db/schema';
 import { plural } from '@/features/history/session-card';
@@ -18,7 +18,7 @@ import { beginRoutine } from '@/features/session/begin';
 import { deleteSession, setSessionTimes } from '@/features/session/repo';
 import { countsTowardStats, setLabels } from '@/features/session/sets';
 import { describeSet, loadSessionRecords, type SessionRecord } from '@/features/session/summary';
-import { normalizeTimes } from '@/features/session/times';
+import { moveToDay, normalizeTimes } from '@/features/session/times';
 import { BLOCK_KIND_ICON, describeBlockFormat, isWod } from '@/features/workouts/blocks';
 import { describeItem, describeResult } from '@/features/workouts/describe';
 import { defaultEquipment, equipmentLabel } from '@/features/workouts/equipment';
@@ -139,7 +139,7 @@ export default function SessionDetailScreen() {
               anchor={<IconButton icon="dots-vertical" accessibilityLabel="Mais opções" onPress={() => setMenuOpen(true)} />}>
               <Menu.Item
                 leadingIcon="clock-edit-outline"
-                title="Editar horários"
+                title="Editar data e horários"
                 onPress={() => {
                   setMenuOpen(false);
                   setTimes(normalizeTimes(session.startedAt, end));
@@ -330,11 +330,14 @@ export default function SessionDetailScreen() {
 
       <Portal>
         <Dialog visible={times != null} onDismiss={() => setTimes(null)}>
-          <Dialog.Title>Editar horários</Dialog.Title>
+          <Dialog.Title>Editar data e horários</Dialog.Title>
           {times && (
-            <Dialog.Content style={styles.times}>
-              <TimeField label="Início" value={times.start} onChange={(start) => setTimes(normalizeTimes(start, times.end))} />
-              <TimeField label="Término" value={times.end} onChange={(e) => setTimes(normalizeTimes(times.start, e))} />
+            <Dialog.Content>
+              <DateField label="Data" value={times.start} onChange={(day) => setTimes(moveToDay(times, day))} />
+              <View style={styles.times}>
+                <TimeField label="Início" value={times.start} onChange={(start) => setTimes(normalizeTimes(start, times.end))} />
+                <TimeField label="Término" value={times.end} onChange={(e) => setTimes(normalizeTimes(times.start, e))} />
+              </View>
             </Dialog.Content>
           )}
           <Dialog.Actions>
@@ -445,5 +448,5 @@ const styles = StyleSheet.create({
   pill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, overflow: 'hidden' },
   movementRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
   again: { height: 52 },
-  times: { flexDirection: 'row', gap: 8 },
+  times: { flexDirection: 'row', gap: 8, marginTop: 8 },
 });

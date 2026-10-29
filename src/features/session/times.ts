@@ -7,6 +7,14 @@ export function normalizeTimes(start: number, end: number) {
   return { start, end };
 }
 
+/** Moves a workout to the day of `day`, keeping its start time and duration (DST-safe). */
+export function moveToDay(times: { start: number; end: number }, day: number) {
+  const d = new Date(day);
+  const start = new Date(times.start);
+  start.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+  return { start: start.getTime(), end: start.getTime() + (times.end - times.start) };
+}
+
 export const REST_STEP = 15;
 const REST_MAX = 15 * 60;
 

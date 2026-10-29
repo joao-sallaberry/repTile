@@ -1,4 +1,4 @@
-import { normalizeTimes, stepRest } from './times';
+import { moveToDay, normalizeTimes, stepRest } from './times';
 
 const at = (h: number, m = 0, day = 17) => new Date(2026, 9, day, h, m).getTime();
 
@@ -13,6 +13,16 @@ describe('normalizeTimes', () => {
 
   it('pulls an end more than a day later back', () => {
     expect(normalizeTimes(at(18), at(19, 0, 19))).toEqual({ start: at(18), end: at(19) });
+  });
+});
+
+describe('moveToDay', () => {
+  it('keeps the start time and the duration', () => {
+    expect(moveToDay({ start: at(18, 40), end: at(19, 35) }, at(9, 0, 14))).toEqual({ start: at(18, 40, 14), end: at(19, 35, 14) });
+  });
+
+  it('keeps a workout that ends past midnight ending the next day', () => {
+    expect(moveToDay({ start: at(23, 30), end: at(0, 20, 18) }, at(12, 0, 3))).toEqual({ start: at(23, 30, 3), end: at(0, 20, 4) });
   });
 });
 

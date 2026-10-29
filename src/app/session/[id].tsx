@@ -5,12 +5,12 @@ import { useEffect, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { Button, Checkbox, Dialog, IconButton, Portal, Text, TextInput } from 'react-native-paper';
 
-import { TimeField } from '@/components/time-field';
+import { DateField, TimeField } from '@/components/time-field';
 
 import { db } from '@/db/client';
 import { sessions } from '@/db/schema';
 import { deleteSession, finishSession, saveSessionAsRoutine, type SessionResult } from '@/features/session/repo';
-import { normalizeTimes } from '@/features/session/times';
+import { moveToDay, normalizeTimes } from '@/features/session/times';
 import { SessionView } from '@/features/session/session-view';
 import { useTimerStore } from '@/features/timer/store';
 import { formatDuration } from '@/lib/format';
@@ -85,6 +85,7 @@ export default function SessionScreen() {
           <Dialog.Title>Finalizar treino</Dialog.Title>
           <Dialog.Content>
             <TextInput mode="outlined" label="Nome do treino" value={name} onChangeText={setName} style={styles.name} />
+            <DateField label="Data" value={times.start} onChange={(day) => setTimes((t) => moveToDay(t, day))} />
             <View style={styles.times}>
               <TimeField label="Início" value={times.start} onChange={(start) => setTimes((t) => normalizeTimes(start, t.end))} />
               <TimeField label="Término" value={times.end} onChange={(end) => setTimes((t) => normalizeTimes(t.start, end))} />
@@ -123,6 +124,6 @@ export default function SessionScreen() {
 const styles = StyleSheet.create({
   name: { marginBottom: 12 },
   checkbox: { paddingHorizontal: 0 },
-  times: { flexDirection: 'row', gap: 8 },
+  times: { flexDirection: 'row', gap: 8, marginTop: 8 },
   duration: { opacity: 0.7, marginTop: 6, marginBottom: 12 },
 });
