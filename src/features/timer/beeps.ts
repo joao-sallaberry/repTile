@@ -1,4 +1,4 @@
-import { createAudioPlayer, setAudioModeAsync, setIsAudioActiveAsync, type AudioPlayer } from 'expo-audio';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 
 import type { CueKind } from './engine';
@@ -12,53 +12,36 @@ const SOURCES: Record<'tick' | 'go' | 'end', number> = {
 type Players = Record<keyof typeof SOURCES, AudioPlayer>;
 
 let players: Players | null = null;
-/**
- * Every audio call goes through this chain, so a beep never starts before the audio mode is
- * set (the first one would grab exclusive focus instead of ducking) or while focus is released.
- */
-let chain: Promise<unknown> = Promise.resolve();
-
-function enqueue(step: () => unknown) {
-  chain = chain.then(step).catch((e) => console.warn('[beeps]', e));
-}
+/** Resolves once the audio mode is set: a beep never plays before it (it would request audio focus). */
+let ready: Promise<unknown> = Promise.resolve();
 
 function getPlayers(): Players {
   if (!players) {
-    const created: Players = {
+    players = {
       tick: createAudioPlayer(SOURCES.tick),
       go: createAudioPlayer(SOURCES.go),
       end: createAudioPlayer(SOURCES.end),
     };
-    for (const p of Object.values(created)) {
-      p.addListener('playbackStatusUpdate', (s) => {
-        if (s.didJustFinish) enqueue(releaseFocus);
-      });
-    }
-    players = created;
-    enqueue(() => setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'duckOthers', shouldPlayInBackground: true }));
+    // Mix with other audio, never take audio focus (ADR 0022): with focus, expo-audio could keep it after a
+    // beep (a transient loss to another app makes it skip abandoning it) and leave the music ducked.
+    ready = setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: 'mixWithOthers',
+      shouldPlayInBackground: true,
+    }).catch((e) => console.warn('[beeps]', e));
   }
   return players;
 }
 
 /**
- * Gives the audio focus back once no beep is playing, so ducked music returns to full volume.
- * expo-audio only does it from its own playback callback, which left other apps ducked.
- */
-async function releaseFocus() {
-  if (Object.values(getPlayers()).some((p) => p.playing)) return;
-  await setIsAudioActiveAsync(false);
-  await setIsAudioActiveAsync(true);
-}
-
-/**
  * Plays a cue's beep on the media stream, so it follows the music to Bluetooth/wired
- * headphones (ducking it); notification sounds don't (ADR 0018).
+ * headphones, over it (ADR 0018, ADR 0022); notification sounds don't.
  * `haptics: false` when the notification already vibrates.
  */
 export function playCue(kind: CueKind, { haptics = true } = {}) {
   // Tabata rest uses the end beep, so work and rest sound different.
   const p = getPlayers()[kind === 'interval' ? 'go' : kind === 'rest' ? 'end' : kind];
-  enqueue(() => {
+  void ready.then(() => {
     p.seekTo(0);
     p.play();
   });
