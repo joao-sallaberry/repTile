@@ -15,6 +15,7 @@ import {
 } from 'react-native-paper';
 
 import { BlockConfigFields } from '@/components/block-config-fields';
+import { FilterChip } from '@/components/filter-chips';
 import { DurationField } from '@/components/duration-field';
 import { EquipmentMenu } from '@/components/equipment-menu';
 import { ExerciseThumb } from '@/components/exercise-media';
@@ -27,7 +28,7 @@ import { RestPicker } from '@/components/rest-picker';
 import { SetBadge } from '@/components/set-badge';
 import { SetTypeDialog } from '@/components/set-type-dialog';
 import type { BlockKind, Exercise, SetType } from '@/db/schema';
-import { useLocation, useMachineMap } from '@/features/places/queries';
+import { useLocation, useLocations, useMachineMap } from '@/features/places/queries';
 import { setLabels } from '@/features/session/sets';
 import { BLOCK_KIND_ICON, BLOCK_KIND_LABEL, describeBlockFormat, WOD_KINDS } from '@/features/workouts/blocks';
 import { defaultEquipment, equipmentText, hasStation, stationNoun } from '@/features/workouts/equipment';
@@ -40,11 +41,13 @@ import {
   getWorkoutDraft,
   newSet,
   saveWorkout,
+  stripIds,
   type BlockDraft,
   type SetDraft,
   type WorkoutDraft,
   type WorkoutItemDraft,
 } from '@/features/workouts/repo';
+import { variantKeys, variantLocation, type VariantKey } from '@/features/workouts/variants';
 import { formatDuration } from '@/lib/format';
 
 type ItemRef = { block: number; item: number };
@@ -57,8 +60,14 @@ export default function EditWorkoutScreen() {
   const [locationOpen, setLocationOpen] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [machineFor, setMachineFor] = useState<ItemRef | null>(null);
+  /** Location variant being edited (ADR 0020): `null` = the main routine. */
+  const [variant, setVariant] = useState<VariantKey>(null);
+  /** Variants just added, before they have blocks. */
+  const [newVariants, setNewVariants] = useState<string[]>([]);
+  const [variantPickerOpen, setVariantPickerOpen] = useState(false);
   const exerciseMap = useExerciseMap();
   const location = useLocation(draft?.locationId);
+  const locations = useLocations();
   const theme = useTheme();
 
   useEffect(() => {
@@ -66,6 +75,38 @@ export default function EditWorkoutScreen() {
   }, [id]);
 
   if (!draft) return null;
+
+  // The variant being edited stays listed even with no blocks left (validation then asks for exercises).
+  const keys = [...new Set([...variantKeys(draft.blocks), ...newVariants, variant])];
+  const variantName = (key: VariantKey) =>
+    key == null ? (location?.name ?? 'Outros locais') : (locations.find((l) => l.id === key)?.name ?? 'Local removido');
+  /** Indices (in `draft.blocks`) of the blocks of the variant being edited. */
+  const shown = draft.blocks.flatMap((b, i) => (b.locationId === variant ? [i] : []));
+  const shownBlocks = shown.map((i) => draft.blocks[i]);
+  const variantLocationId = variantLocation(variant, draft.locationId);
+  const variantLocationName = variantLocationId ? locations.find((l) => l.id === variantLocationId)?.name : undefined;
+
+  /** A new variant for `locationId`, starting as a copy of the one being edited. */
+  const addVariant = (locationId: string | null) => {
+    if (locationId == null) return;
+    const copy = stripIds({ ...draft, blocks: shownBlocks }).blocks.map((b) => ({ ...b, locationId }));
+    update({ blocks: [...draft.blocks, ...copy] });
+    setNewVariants([...newVariants, locationId]);
+    setVariant(locationId);
+  };
+  const removeVariant = (key: string) =>
+    Alert.alert(`Remover a versão de ${variantName(key)}?`, `Lá, a rotina passa a ser a de ${variantName(null)}.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Remover',
+        style: 'destructive',
+        onPress: () => {
+          update({ blocks: draft.blocks.filter((b) => b.locationId !== key) });
+          setNewVariants(newVariants.filter((k) => k !== key));
+          setVariant(null);
+        },
+      },
+    ]);
 
   const update = (patch: Partial<WorkoutDraft>) => setDraft({ ...draft, ...patch });
   const updateBlock = (index: number, patch: Partial<BlockDraft>) =>
@@ -80,20 +121,23 @@ export default function EditWorkoutScreen() {
       updateBlock(pickerFor, { items: [...b.items, emptyItem(exerciseId, b.kind)] });
       return;
     }
-    const last = draft.blocks.at(-1);
-    if (last?.kind === 'exercises') {
-      updateBlock(draft.blocks.length - 1, { items: [...last.items, emptyItem(exerciseId, 'exercises')] });
+    const lastIndex = shown.at(-1);
+    const last = lastIndex != null ? draft.blocks[lastIndex] : undefined;
+    if (lastIndex != null && last?.kind === 'exercises') {
+      updateBlock(lastIndex, { items: [...last.items, emptyItem(exerciseId, 'exercises')] });
     } else {
-      update({ blocks: [...draft.blocks, { ...emptyBlock('exercises'), items: [emptyItem(exerciseId, 'exercises')] }] });
+      update({
+        blocks: [...draft.blocks, { ...emptyBlock('exercises', variant), items: [emptyItem(exerciseId, 'exercises')] }],
+      });
     }
   };
 
   const addBlock = (kind: BlockKind) => {
-    update({ blocks: [...draft.blocks, emptyBlock(kind)] });
+    update({ blocks: [...draft.blocks, emptyBlock(kind, variant)] });
     setPickerFor(draft.blocks.length);
   };
 
-  const errors = validate(draft);
+  const errors = validate(draft, keys.length > 1 ? keys : [null], variantName);
   const save = async () => {
     setSaving(true);
     try {
@@ -105,7 +149,7 @@ export default function EditWorkoutScreen() {
     }
   };
 
-  const reorderGroups: ReorderGroup<BlockDraft, WorkoutItemDraft>[] = draft.blocks.map((b, bi) => ({
+  const reorderGroups: ReorderGroup<BlockDraft, WorkoutItemDraft>[] = shown.map((bi) => draft.blocks[bi]).map((b, bi) => ({
     key: `b${bi}`,
     title: describeBlockFormat(b) ?? BLOCK_KIND_LABEL[b.kind],
     icon: BLOCK_KIND_ICON[b.kind],
@@ -129,7 +173,7 @@ export default function EditWorkoutScreen() {
         },
       },
     ]);
-  const hasExercisesBlock = draft.blocks.some((b) => b.kind === 'exercises');
+  const hasExercisesBlock = shownBlocks.some((b) => b.kind === 'exercises');
 
   const machineItem = machineFor ? draft.blocks[machineFor.block]?.items[machineFor.item] : undefined;
 
@@ -166,6 +210,37 @@ export default function EditWorkoutScreen() {
           />
         </TouchableRipple>
 
+        {keys.length > 1 ? (
+          <View style={styles.variants}>
+            <Text variant="labelLarge" style={styles.muted}>
+              VERSÃO POR LOCAL
+            </Text>
+            <View style={styles.chips}>
+              {keys.map((k) => (
+                <FilterChip key={k ?? 'main'} icon="map-marker-outline" selected={k === variant} onPress={() => setVariant(k)}>
+                  {variantName(k)}
+                </FilterChip>
+              ))}
+              <FilterChip icon="plus" selected={false} onPress={() => setVariantPickerOpen(true)}>
+                Local
+              </FilterChip>
+            </View>
+            <Text variant="bodySmall" style={styles.muted}>
+              {variant == null
+                ? `Feita ${location ? `em ${location.name}` : 'nos locais sem versão própria'}.`
+                : `Feita quando o treino começa em ${variantName(variant)}. Exercícios, ordem e séries são só desta versão.`}
+            </Text>
+          </View>
+        ) : (
+          <Button
+            compact
+            icon="map-marker-plus-outline"
+            style={styles.addVariant}
+            onPress={() => setVariantPickerOpen(true)}>
+            Versão diferente para outro local
+          </Button>
+        )}
+
         <TextInput
           mode="outlined"
           label="Observações"
@@ -185,16 +260,16 @@ export default function EditWorkoutScreen() {
           )}
         </View>
 
-        {draft.blocks.map((block, bi) => (
+        {shown.map((bi) => draft.blocks[bi]).map((block, i) => (
           <BlockEditor
-            key={block.id ?? `new-${bi}`}
+            key={block.id ?? `new-${shown[i]}`}
             block={block}
-            count={draft.blocks.length}
+            count={shown.length}
             exerciseMap={exerciseMap}
-            onChange={(patch) => updateBlock(bi, patch)}
-            onRemove={() => update({ blocks: draft.blocks.filter((_, i) => i !== bi) })}
-            onAddItem={() => setPickerFor(bi)}
-            onPickMachine={(item) => setMachineFor({ block: bi, item })}
+            onChange={(patch) => updateBlock(shown[i], patch)}
+            onRemove={() => update({ blocks: draft.blocks.filter((_, j) => j !== shown[i]) })}
+            onAddItem={() => setPickerFor(shown[i])}
+            onPickMachine={(item) => setMachineFor({ block: shown[i], item })}
           />
         ))}
 
@@ -228,6 +303,11 @@ export default function EditWorkoutScreen() {
             {e}
           </HelperText>
         ))}
+        {variant != null && (
+          <Button icon="map-marker-remove-outline" textColor={theme.colors.error} onPress={() => removeVariant(variant)}>
+            Remover versão de {variantName(variant)}
+          </Button>
+        )}
         {id && (
           <Button icon="delete-outline" textColor={theme.colors.error} style={styles.delete} onPress={confirmDelete}>
             Excluir rotina
@@ -239,15 +319,32 @@ export default function EditWorkoutScreen() {
         visible={reorderOpen}
         groups={reorderGroups}
         onDismiss={() => setReorderOpen(false)}
-        onSave={(groups) => update({ blocks: groups.map((g) => ({ ...g.value, items: g.items.map((i) => i.value) })) })}
+        onSave={(groups) =>
+          update({
+            blocks: [
+              ...draft.blocks.filter((b) => b.locationId !== variant),
+              ...groups.map((g) => ({ ...g.value, items: g.items.map((i) => i.value) })),
+            ],
+          })
+        }
       />
       <ExercisePicker visible={pickerFor != null} onDismiss={() => setPickerFor(null)} onPick={addExercise} />
       <LocationPicker
         visible={locationOpen}
         currentId={draft.locationId}
         noneLabel="Sem local fixo"
+        exclude={keys}
         onDismiss={() => setLocationOpen(false)}
         onPick={(locationId) => update({ locationId })}
+      />
+      <LocationPicker
+        visible={variantPickerOpen}
+        title="Versão para o local"
+        currentId={null}
+        noneLabel={null}
+        exclude={[draft.locationId, ...keys]}
+        onDismiss={() => setVariantPickerOpen(false)}
+        onPick={addVariant}
       />
       {machineFor && machineItem && (
         <MachinePicker
@@ -255,8 +352,8 @@ export default function EditWorkoutScreen() {
           exerciseId={machineItem.exerciseId}
           exerciseName={exerciseMap.get(machineItem.exerciseId)?.name ?? ''}
           noun={stationNoun(machineItem.equipment ?? defaultEquipment(exerciseMap.get(machineItem.exerciseId)))}
-          locationId={draft.locationId}
-          locationName={location?.name}
+          locationId={variantLocationId}
+          locationName={variantLocationName}
           currentMachineId={machineItem.machineId}
           onDismiss={() => setMachineFor(null)}
           onPick={(machineId) => updateItem(machineFor, { machineId })}
@@ -616,10 +713,15 @@ function RestPill({ value, onChange }: { value: number | null; onChange: (sec: n
   );
 }
 
-function validate(d: WorkoutDraft): string[] {
+/** `keys`: the variants to check (just the main one when there are no others), named by `nameOf` in messages. */
+function validate(d: WorkoutDraft, keys: VariantKey[], nameOf: (k: VariantKey) => string): string[] {
   const errors: string[] = [];
   if (!d.name.trim()) errors.push('Dê um nome ao treino.');
-  if (!d.blocks.some((b) => b.items.length)) errors.push('Adicione pelo menos um exercício.');
+  for (const k of keys) {
+    if (!d.blocks.some((b) => b.locationId === k && b.items.length)) {
+      errors.push(keys.length > 1 ? `Adicione pelo menos um exercício à versão de ${nameOf(k)}.` : 'Adicione pelo menos um exercício.');
+    }
+  }
   for (const b of d.blocks) {
     if (b.kind === 'amrap' && !b.durationSec) errors.push('Informe a duração do AMRAP.');
     if (b.kind === 'emom' && (!b.intervalSec || !b.rounds)) errors.push('Informe intervalo e número de intervalos do EMOM.');
@@ -650,6 +752,9 @@ const styles = StyleSheet.create({
   fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   field: { flexGrow: 1, flexBasis: 90 },
   locationBtn: { borderRadius: 12 },
+  variants: { gap: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  addVariant: { alignSelf: 'flex-start' },
   setsBox: { gap: 8 },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   th: { fontSize: 11, fontWeight: '700', letterSpacing: 0.6, opacity: 0.7, textAlign: 'center' },

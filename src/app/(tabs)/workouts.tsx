@@ -24,7 +24,7 @@ const hasWod = (r: RoutineRow) => r.blocks.some((b) => isWod(b.kind));
 function matches(r: RoutineRow, filter: Filter, query: string) {
   if (filter.kind === 'strength' && !hasStrength(r)) return false;
   if (filter.kind === 'wod' && !hasWod(r)) return false;
-  if (filter.kind === 'location' && r.locationId !== filter.id) return false;
+  if (filter.kind === 'location' && !r.locationIds.includes(filter.id)) return false;
   const q = normalizeSearch(query);
   return !q || normalizeSearch(`${r.name} ${r.exerciseNames.join(' ')}`).includes(q);
 }
@@ -40,7 +40,7 @@ export default function WorkoutsScreen() {
   const ordered = useMemo(() => [...routines].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')), [routines]);
   const shown = ordered.filter((r) => matches(r, filter, query));
 
-  const routineLocations = locations.filter((l) => routines.some((r) => r.locationId === l.id));
+  const routineLocations = locations.filter((l) => routines.some((r) => r.locationIds.includes(l.id)));
   const chips: { key: string; label: string; filter: Filter }[] = [
     { key: 'all', label: 'Todos', filter: { kind: 'all' } },
     ...(routines.some(hasStrength) && routines.some(hasWod)
@@ -87,7 +87,12 @@ export default function WorkoutsScreen() {
           <RoutineCard
             routine={item}
             now={now}
-            location={item.locationId ? locations.find((l) => l.id === item.locationId)?.name : undefined}
+            location={
+              item.locationIds
+                .map((id) => locations.find((l) => l.id === id)?.name)
+                .filter(Boolean)
+                .join(' · ') || undefined
+            }
           />
         )}
         ItemSeparatorComponent={() => <View style={styles.gap} />}

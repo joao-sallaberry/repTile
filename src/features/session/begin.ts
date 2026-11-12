@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Alert } from 'react-native';
 
 import { useCurrentLocation } from '@/features/places/current';
+import type { VariantKey } from '@/features/workouts/variants';
 
 import { getActiveSession, startEmptySession, startSession } from './repo';
 
@@ -19,7 +20,8 @@ async function beginSession(create: () => Promise<string>) {
   router.push({ pathname: '/session/[id]', params: { id } });
 }
 
-export const beginRoutine = (workoutId: string) =>
-  beginSession(() => startSession(workoutId, useCurrentLocation.getState().id));
+/** Starts a routine: the given location variant, else the one of the current location (ADR 0020). */
+export const beginRoutine = (workoutId: string, variant?: VariantKey) =>
+  beginSession(() => startSession(workoutId, useCurrentLocation.getState().id, variant));
 
 export const beginFreeWorkout = () => beginSession(() => startEmptySession(useCurrentLocation.getState().id));

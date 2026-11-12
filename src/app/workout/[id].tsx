@@ -6,12 +6,14 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Chip, Divider, Icon, IconButton, Menu, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
 import { ExerciseThumb } from '@/components/exercise-media';
+import { FilterChip } from '@/components/filter-chips';
 import { db } from '@/db/client';
 import { sessionBlocks, sessions, workoutBlocks, workoutItems, workoutItemSets, workouts, type SessionBlock } from '@/db/schema';
 import { durationSec, plural, SessionCard } from '@/features/history/session-card';
 import { useRoutineSessions } from '@/features/home/queries';
 import { formatMinutes, relativeDays } from '@/features/home/stats';
-import { useLocation, useMachineMap } from '@/features/places/queries';
+import { useCurrentLocation } from '@/features/places/current';
+import { useLocations, useMachineMap } from '@/features/places/queries';
 import { beginRoutine } from '@/features/session/begin';
 import { compareWodResults } from '@/features/stats/prs';
 import { BLOCK_KIND_ICON, describeBlockFormat, isWod, workoutIcon } from '@/features/workouts/blocks';
@@ -19,6 +21,7 @@ import { describeItem, describeResult, describeTargets } from '@/features/workou
 import { equipmentLabel } from '@/features/workouts/equipment';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { deleteWorkout, duplicateWorkout } from '@/features/workouts/repo';
+import { blocksOf, pickVariant, variantKeys, variantLocation, type VariantKey } from '@/features/workouts/variants';
 import { formatDate } from '@/lib/format';
 import { STRENGTH_TINT } from '@/theme';
 
@@ -49,7 +52,10 @@ export default function WorkoutDetailScreen() {
     [id],
   );
   const machineMap = useMachineMap();
-  const location = useLocation(workout?.locationId);
+  const locations = useLocations();
+  const currentLocationId = useCurrentLocation((s) => s.id);
+  /** Location variant picked by the user (ADR 0020); `undefined` = the one of the current location. */
+  const [picked, setPicked] = useState<VariantKey | undefined>(undefined);
   const runs = useRoutineSessions(id);
   const [now] = useState(Date.now);
   const [allRuns, setAllRuns] = useState(false);
@@ -72,6 +78,12 @@ export default function WorkoutDetailScreen() {
 
   if (!workout) return null;
 
+  const keys = variantKeys(workout.blocks);
+  const variant = picked !== undefined && keys.includes(picked) ? picked : pickVariant(keys, workout.locationId, currentLocationId).variant;
+  const blocks = blocksOf(workout.blocks, variant);
+  const locationName = (lid: string | null) => (lid ? locations.find((l) => l.id === lid)?.name : undefined);
+  const location = locationName(variantLocation(variant, workout.locationId));
+
   // Best result of each scored WOD block (AMRAP / For Time / Tabata), over all its runs.
   const bestByBlock = new Map<string, SessionBlock>();
   for (const { block: run } of wodRuns) {
@@ -80,16 +92,16 @@ export default function WorkoutDetailScreen() {
     if (!cur || compareWodResults(run.kind, run, cur) > 0) bestByBlock.set(run.workoutBlockId, run);
   }
 
-  const kinds = workout.blocks.map((b) => b.kind);
+  const kinds = blocks.map((b) => b.kind);
   const strength = !kinds.length || kinds.includes('exercises');
-  const plainItems = workout.blocks.filter((b) => b.kind === 'exercises').flatMap((b) => b.items);
-  const allItems = workout.blocks.flatMap((b) => b.items);
+  const plainItems = blocks.filter((b) => b.kind === 'exercises').flatMap((b) => b.items);
+  const allItems = blocks.flatMap((b) => b.items);
   const avgSec = runs.length ? runs.reduce((acc, r) => acc + durationSec(r), 0) / runs.length : null;
   const stats = [
     { value: String(strength ? plainItems.length : allItems.length), label: 'exercícios' },
     strength
       ? { value: String(plainItems.reduce((n, i) => n + i.targetSets.length, 0)), label: 'séries' }
-      : { value: String(workout.blocks.length), label: workout.blocks.length === 1 ? 'bloco' : 'blocos' },
+      : { value: String(blocks.length), label: blocks.length === 1 ? 'bloco' : 'blocos' },
     { value: avgSec != null ? formatMinutes(avgSec) : '—', label: 'duração média' },
   ];
   const shownRuns = allRuns ? runs : runs.slice(0, 3);
@@ -97,7 +109,8 @@ export default function WorkoutDetailScreen() {
   const start = async () => {
     setStarting(true);
     try {
-      await beginRoutine(workout.id);
+      // Only an explicit pick overrides the current location's variant.
+      await beginRoutine(workout.id, picked !== undefined ? variant : undefined);
     } finally {
       setStarting(false);
     }
@@ -183,15 +196,25 @@ export default function WorkoutDetailScreen() {
             </Text>
           </View>
         </View>
-        {location && (
+        {keys.length > 1 ? (
           <View style={styles.chips}>
-            <Chip
-              icon="map-marker-outline"
-              style={{ backgroundColor: theme.colors.secondaryContainer }}
-              textStyle={{ color: theme.colors.onSecondaryContainer }}>
-              {location.name}
-            </Chip>
+            {keys.map((k) => (
+              <FilterChip key={k ?? 'main'} icon="map-marker-outline" selected={k === variant} onPress={() => setPicked(k)}>
+                {locationName(variantLocation(k, workout.locationId)) ?? 'Outros locais'}
+              </FilterChip>
+            ))}
           </View>
+        ) : (
+          location && (
+            <View style={styles.chips}>
+              <Chip
+                icon="map-marker-outline"
+                style={{ backgroundColor: theme.colors.secondaryContainer }}
+                textStyle={{ color: theme.colors.onSecondaryContainer }}>
+                {location}
+              </Chip>
+            </View>
+          )
         )}
         {workout.notes ? <Text variant="bodyMedium">{workout.notes}</Text> : null}
 
@@ -213,7 +236,7 @@ export default function WorkoutDetailScreen() {
             Exercícios
           </Text>
         )}
-        {workout.blocks.map((block) => {
+        {blocks.map((block) => {
           if (!isWod(block.kind)) {
             if (!block.items.length) return null;
             return (

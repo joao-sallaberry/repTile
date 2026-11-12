@@ -25,6 +25,7 @@ import {
   type BlockDraft,
   type WorkoutItemDraft,
 } from '@/features/workouts/repo';
+import { blocksOf, pickVariant, variantKeys, variantLocation, type VariantKey } from '@/features/workouts/variants';
 import { createdFields, touched } from '@/lib/ids';
 
 import { countsTowardStats, pairPrevious } from './sets';
@@ -98,9 +99,22 @@ const configOf = (b: BlockConfig): BlockConfig => {
   return { kind, durationSec, intervalSec, rounds, timeCapSec, workSec, restSec, alternate };
 };
 
-export async function startSession(workoutId: string, fallbackLocationId: string | null = null): Promise<string> {
-  const w = await getWorkoutDraft(workoutId);
-  if (!w) throw new Error('Treino não encontrado');
+/**
+ * Starts a routine. `variant` picks its location variant (ADR 0020); when omitted, the one of the current location
+ * (`pickVariant`). The session takes place at the variant's location, else the routine's, else the current one.
+ */
+export async function startSession(
+  workoutId: string,
+  currentLocationId: string | null = null,
+  variant?: VariantKey,
+): Promise<string> {
+  const routine = await getWorkoutDraft(workoutId);
+  if (!routine) throw new Error('Treino não encontrado');
+  const picked =
+    variant === undefined
+      ? pickVariant(variantKeys(routine.blocks), routine.locationId, currentLocationId)
+      : { variant, locationId: variantLocation(variant, routine.locationId) ?? currentLocationId };
+  const w = { ...routine, blocks: blocksOf(routine.blocks, picked.variant) };
   const defaults = await defaultEquipmentOf(w.blocks.flatMap((b) => b.items.map((i) => i.exerciseId)));
   const equipmentOf = (item: WorkoutItemDraft) => item.equipment ?? defaults.get(item.exerciseId) ?? 'none';
 
@@ -121,7 +135,7 @@ export async function startSession(workoutId: string, fallbackLocationId: string
       ...session,
       workoutId,
       name: w.name,
-      locationId: w.locationId ?? fallbackLocationId,
+      locationId: picked.locationId,
       startedAt: Date.now(),
     });
 

@@ -49,6 +49,8 @@ export type WorkoutItemDraft = {
 
 export type BlockDraft = BlockConfig & {
   id?: string;
+  /** Location variant (ADR 0020): `null` = the main routine, else the location whose own version this block is in. */
+  locationId: string | null;
   notes: string | null;
   items: WorkoutItemDraft[];
 };
@@ -56,7 +58,9 @@ export type BlockDraft = BlockConfig & {
 export type WorkoutDraft = {
   name: string;
   notes: string | null;
+  /** Fixed location of the main variant (optional). */
   locationId: string | null;
+  /** Blocks of every variant; `blocksOf` (variants.ts) picks one. */
   blocks: BlockDraft[];
 };
 
@@ -83,7 +87,12 @@ export const emptyItem = (exerciseId: string, kind: BlockKind, equipment: Equipm
   notes: null,
 });
 
-export const emptyBlock = (kind: BlockKind): BlockDraft => ({ ...defaultBlockConfig(kind), notes: null, items: [] });
+export const emptyBlock = (kind: BlockKind, locationId: string | null = null): BlockDraft => ({
+  ...defaultBlockConfig(kind),
+  locationId,
+  notes: null,
+  items: [],
+});
 
 export function emptyWorkout(): WorkoutDraft {
   return { name: '', notes: null, locationId: null, blocks: [] };
@@ -113,6 +122,7 @@ export async function getWorkoutDraft(id: string): Promise<WorkoutDraft | null> 
     locationId: w.locationId,
     blocks: w.blocks.map((b) => ({
       id: b.id,
+      locationId: b.locationId,
       kind: b.kind,
       durationSec: b.durationSec,
       intervalSec: b.intervalSec,
@@ -197,8 +207,17 @@ export async function saveWorkout(id: string | null, draft: WorkoutDraft): Promi
       .where(and(eq(workoutItems.workoutId, workoutId), isNull(workoutItems.deletedAt)));
     await softDelete(tx, workoutItems, oldItems.map((i) => i.id).filter((iid) => !keepItems.has(iid)));
 
-    for (const [blockPos, { id: existingBlockId, items, ...block }] of blocks.entries()) {
-      const blockValues = { ...cleanBlockConfig(block), notes: block.notes, position: blockPos };
+    // Positions count within each variant.
+    const nextPosition = new Map<string | null, number>();
+    for (const { id: existingBlockId, items, ...block } of blocks) {
+      const blockPos = nextPosition.get(block.locationId) ?? 0;
+      nextPosition.set(block.locationId, blockPos + 1);
+      const blockValues = {
+        ...cleanBlockConfig(block),
+        locationId: block.locationId,
+        notes: block.notes,
+        position: blockPos,
+      };
       let blockId = existingBlockId;
       if (blockId) {
         await tx.update(workoutBlocks).set({ ...blockValues, ...touched() }).where(eq(workoutBlocks.id, blockId));

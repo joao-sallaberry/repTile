@@ -19,6 +19,9 @@ import {
   type WorkoutBlock,
 } from '@/db/schema';
 
+import { useCurrentLocation } from '@/features/places/current';
+import { blocksOf, pickVariant, routineLocationIds, variantKeys } from '@/features/workouts/variants';
+
 import { summarizeSets, weekBounds } from './stats';
 
 const finished = and(isNotNull(sessions.finishedAt), isNull(sessions.deletedAt));
@@ -71,13 +74,20 @@ export type RoutineBlock = WorkoutBlock & { itemCount: number };
 export type RoutineRow = Workout & {
   lastDoneAt: number | null;
   exerciseCount: number;
+  /** Blocks of the variant for the current location (ADR 0020); `exerciseCount`/`exerciseNames` describe it too. */
   blocks: RoutineBlock[];
+  /** Every location the routine is set up for: its fixed one and its variants'. */
+  locationIds: string[];
   /** Exercise names in routine order, without repeats. */
   exerciseNames: string[];
 };
 
-/** Saved routines with their blocks and when each was last done, most recently done first (never done last). */
+/**
+ * Saved routines with their blocks and when each was last done, most recently done first (never done last).
+ * A routine with location variants shows the one for the current location.
+ */
 export function useRoutines(): RoutineRow[] {
+  const currentLocationId = useCurrentLocation((s) => s.id);
   const { data: list } = useLiveQuery(db.select().from(workouts).where(isNull(workouts.deletedAt)));
   const { data: last } = useLiveQuery(
     db
@@ -98,7 +108,7 @@ export function useRoutines(): RoutineRow[] {
   );
   const { data: names } = useLiveQuery(
     db
-      .select({ workoutId: workoutBlocks.workoutId, name: exercises.name })
+      .select({ blockId: workoutBlocks.id, name: exercises.name })
       .from(workoutItems)
       .innerJoin(workoutBlocks, eq(workoutBlocks.id, workoutItems.blockId))
       .innerJoin(exercises, eq(exercises.id, workoutItems.exerciseId))
@@ -109,25 +119,29 @@ export function useRoutines(): RoutineRow[] {
   return useMemo(() => {
     const lastBy = new Map(last.map((l) => [l.workoutId, l.at]));
     const countBy = new Map(counts.map((c) => [c.blockId, c.n]));
-    const namesBy = new Map<string, Set<string>>();
-    for (const n of names) namesBy.set(n.workoutId, (namesBy.get(n.workoutId) ?? new Set()).add(n.name));
+    const namesBy = new Map<string, string[]>();
+    for (const n of names) namesBy.set(n.blockId, [...(namesBy.get(n.blockId) ?? []), n.name]);
     const blocksBy = new Map<string, RoutineBlock[]>();
     for (const b of blocks) {
       blocksBy.set(b.workoutId, [...(blocksBy.get(b.workoutId) ?? []), { ...b, itemCount: countBy.get(b.id) ?? 0 }]);
     }
     return list
       .map((w) => {
-        const wb = blocksBy.get(w.id) ?? [];
+        const all = blocksBy.get(w.id) ?? [];
+        const keys = variantKeys(all);
+        const { variant } = pickVariant(keys, w.locationId, currentLocationId);
+        const wb = blocksOf(all, variant);
         return {
           ...w,
           blocks: wb,
+          locationIds: routineLocationIds(w.locationId, keys),
           lastDoneAt: lastBy.get(w.id) ?? null,
           exerciseCount: wb.filter((b) => b.kind === 'exercises').reduce((n, b) => n + b.itemCount, 0),
-          exerciseNames: [...(namesBy.get(w.id) ?? [])],
+          exerciseNames: [...new Set(wb.flatMap((b) => namesBy.get(b.id) ?? []))],
         };
       })
       .sort((a, b) => (b.lastDoneAt ?? -1) - (a.lastDoneAt ?? -1) || b.updatedAt - a.updatedAt);
-  }, [list, last, blocks, counts, names]);
+  }, [list, last, blocks, counts, names, currentLocationId]);
 }
 
 export type RecentPr =

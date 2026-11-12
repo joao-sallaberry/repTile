@@ -11,13 +11,24 @@ type Props = {
   currentId: string | null;
   onDismiss: () => void;
   onPick: (locationId: string | null) => void;
-  /** Label of the "no location" option. */
-  noneLabel?: string;
+  /** Label of the "no location" option; `null` hides it. */
+  noneLabel?: string | null;
+  /** Locations not offered (e.g. already taken). */
+  exclude?: (string | null)[];
+  title?: string;
 };
 
 /** Picks (or quickly creates) a location. Creating one only asks for a name and kind. */
-export function LocationPicker({ visible, currentId, onDismiss, onPick, noneLabel = 'Sem local' }: Props) {
-  const all = useLocations();
+export function LocationPicker({
+  visible,
+  currentId,
+  onDismiss,
+  onPick,
+  noneLabel = 'Sem local',
+  exclude = [],
+  title = 'Local',
+}: Props) {
+  const all = useLocations().filter((l) => !exclude.includes(l.id));
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [kind, setKind] = useState<LocationKind>('gym');
@@ -35,7 +46,7 @@ export function LocationPicker({ visible, currentId, onDismiss, onPick, noneLabe
   return (
     <Portal>
       <Dialog visible={visible} onDismiss={close} style={styles.dialog}>
-        <Dialog.Title>{creating ? 'Novo local' : 'Local'}</Dialog.Title>
+        <Dialog.Title>{creating ? 'Novo local' : title}</Dialog.Title>
         {creating ? (
           <>
             <Dialog.Content style={styles.form}>
@@ -73,12 +84,14 @@ export function LocationPicker({ visible, currentId, onDismiss, onPick, noneLabe
                     onPress={() => pick(l.id)}
                   />
                 ))}
-                <List.Item
-                  title={noneLabel}
-                  left={(p) => <List.Icon {...p} icon="map-marker-off-outline" />}
-                  right={(p) => (currentId == null ? <List.Icon {...p} icon="check" /> : null)}
-                  onPress={() => pick(null)}
-                />
+                {noneLabel != null && (
+                  <List.Item
+                    title={noneLabel}
+                    left={(p) => <List.Icon {...p} icon="map-marker-off-outline" />}
+                    right={(p) => (currentId == null ? <List.Icon {...p} icon="check" /> : null)}
+                    onPress={() => pick(null)}
+                  />
+                )}
                 <Divider />
                 <List.Item title="Novo local" left={(p) => <List.Icon {...p} icon="plus" />} onPress={() => setCreating(true)} />
               </ScrollView>

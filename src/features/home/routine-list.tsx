@@ -31,7 +31,7 @@ export function RoutineList({ routines, now, limit = 4 }: { routines: RoutineRow
               description={[
                 describeShape(r.blocks),
                 relativeDays(r.lastDoneAt, now),
-                r.locationId ? locations.find((l) => l.id === r.locationId)?.name : null,
+                ...r.locationIds.map((id) => locations.find((l) => l.id === id)?.name),
               ]
                 .filter(Boolean)
                 .join(' · ')}

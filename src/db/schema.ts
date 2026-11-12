@@ -121,6 +121,11 @@ export const workoutBlocks = sqliteTable(
   {
     ...syncColumns,
     workoutId: text('workout_id').notNull(),
+    /**
+     * Variant of the routine this block belongs to (ADR 0020): `null` = the main one, else the location whose
+     * own version of the routine it is. Positions are per variant.
+     */
+    locationId: text('location_id'),
     position: integer('position').notNull(),
     ...blockConfig,
   },

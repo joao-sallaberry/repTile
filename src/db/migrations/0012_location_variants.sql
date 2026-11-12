@@ -1,0 +1,1 @@
+ALTER TABLE `workout_blocks` ADD `location_id` text;
