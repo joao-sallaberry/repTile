@@ -106,3 +106,8 @@ function linkMessage({ pending, records, linked }: AutoLinkResult) {
 /** Display name of a record: its own title, else the exercise type. */
 export const exerciseName = (e: { title: string | null; exerciseType: number | null }) =>
   e.title?.trim() || exerciseTypeLabel(e.exerciseType);
+
+/** "95 bpm · 215 kcal" for a session card linked to Google Health; just the source when neither was recorded. */
+export const healthLine = (h: { avgHr: number | null; calories: number | null }) =>
+  [h.avgHr ? `${h.avgHr} bpm` : null, h.calories ? `${h.calories} kcal` : null].filter(Boolean).join(' · ') ||
+  'Google Health';

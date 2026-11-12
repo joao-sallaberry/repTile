@@ -1,5 +1,5 @@
 import { summarizeHeartRate } from './heart-rate';
-import { autoLinkMessage, bestMatch, exerciseName, exerciseTypeLabel, sourceLabel } from './match';
+import { autoLinkMessage, bestMatch, exerciseName, exerciseTypeLabel, healthLine, sourceLabel } from './match';
 
 const min = (m: number) => m * 60_000;
 const ex = (id: string, start: number, end: number) => ({
@@ -83,5 +83,13 @@ describe('labels', () => {
     expect(sourceLabel(null)).toBeNull();
     expect(exerciseName({ title: '  ', exerciseType: 36 })).toBe('HIIT');
     expect(exerciseName({ title: 'Peito', exerciseType: 36 })).toBe('Peito');
+  });
+});
+
+describe('healthLine', () => {
+  it('shows heart rate and calories, or the source without them', () => {
+    expect(healthLine({ avgHr: 95, calories: 215 })).toBe('95 bpm · 215 kcal');
+    expect(healthLine({ avgHr: null, calories: 215 })).toBe('215 kcal');
+    expect(healthLine({ avgHr: null, calories: null })).toBe('Google Health');
   });
 });

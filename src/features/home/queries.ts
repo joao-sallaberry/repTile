@@ -6,6 +6,7 @@ import { db } from '@/db/client';
 import {
   exercises,
   sessionBlocks,
+  sessionHealth,
   sessions,
   sessionSets,
   workoutBlocks,
@@ -210,7 +211,16 @@ export function useRecentPrs(limit = 6): RecentPr[] {
   }, [setRows, wodRows, limit]);
 }
 
-export type RecentSession = Session & { volume: number; sets: number; prs: number; wods: SessionBlock[] };
+/** Summary of the session's Google Health link (ADR 0021), `null` when it has none. */
+export type SessionHealthSummary = { avgHr: number | null; calories: number | null };
+
+export type RecentSession = Session & {
+  volume: number;
+  sets: number;
+  prs: number;
+  wods: SessionBlock[];
+  health: SessionHealthSummary | null;
+};
 
 /** Last finished sessions with their volume, working sets, WOD blocks and PR count. */
 export function useRecentSessions(limit = 5): RecentSession[] {
@@ -272,16 +282,32 @@ function useSessionStats(list: Session[]): RecentSession[] {
       .orderBy(asc(sessionBlocks.position)),
     [key],
   );
+  const { data: healthRows } = useLiveQuery(
+    db
+      .select({ sessionId: sessionHealth.sessionId, avgHr: sessionHealth.avgHr, calories: sessionHealth.calories })
+      .from(sessionHealth)
+      .where(
+        and(
+          inArray(sessionHealth.sessionId, ids),
+          isNull(sessionHealth.deletedAt),
+          eq(sessionHealth.unlinked, false),
+          isNotNull(sessionHealth.recordId),
+        ),
+      ),
+    [key],
+  );
 
   return useMemo(() => {
     const setsBy = new Map<string, SessionSet[]>();
     for (const { set } of setRows) setsBy.set(set.sessionId, [...(setsBy.get(set.sessionId) ?? []), set]);
     const wodsBy = new Map<string, SessionBlock[]>();
     for (const b of blockRows) if (b.kind !== 'exercises') wodsBy.set(b.sessionId, [...(wodsBy.get(b.sessionId) ?? []), b]);
+    const healthBy = new Map(healthRows.map((h) => [h.sessionId, { avgHr: h.avgHr, calories: h.calories }]));
     return list.map((s) => {
       const sets = setsBy.get(s.id) ?? [];
       const wods = wodsBy.get(s.id) ?? [];
-      return { ...s, ...summarizeSets(sets), wods, prs: countPrs(sets) + wods.filter((w) => w.isPr).length };
+      const prs = countPrs(sets) + wods.filter((w) => w.isPr).length;
+      return { ...s, ...summarizeSets(sets), wods, prs, health: healthBy.get(s.id) ?? null };
     });
-  }, [list, setRows, blockRows]);
+  }, [list, setRows, blockRows, healthRows]);
 }

@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { Card, Text, useTheme } from 'react-native-paper';
+import { Card, Icon, Text, useTheme } from 'react-native-paper';
 
+import { healthLine } from '@/features/health/match';
 import type { RecentSession } from '@/features/home/queries';
 import { formatMinutes, formatVolume } from '@/features/home/stats';
 import { useLocations } from '@/features/places/queries';
@@ -14,7 +15,10 @@ export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 
 export const durationSec = (s: { startedAt: number; finishedAt: number | null }) =>
   ((s.finishedAt ?? s.startedAt) - s.startedAt) / 1000;
 
-/** One finished session: weekday and day, name, duration · volume · sets (or the WOD), place, and its result or PR count. */
+/**
+ * One finished session: weekday and day, name, duration · volume · sets (or the WOD), place, its Google Health
+ * heart rate and calories when linked, and its result or PR count.
+ */
 export function SessionCard({ session: s }: { session: RecentSession }) {
   const theme = useTheme();
   const locations = useLocations();
@@ -53,6 +57,14 @@ export function SessionCard({ session: s }: { session: RecentSession }) {
               {place}
             </Text>
           )}
+          {s.health && (
+            <View style={styles.health} accessibilityLabel={`Google Health: ${healthLine(s.health)}`}>
+              <Icon source="heart-pulse" size={14} color={theme.colors.error} />
+              <Text variant="bodySmall" style={{ color: theme.colors.error }} numberOfLines={1}>
+                {healthLine(s.health)}
+              </Text>
+            </View>
+          )}
         </View>
         {result ? (
           <View style={styles.result}>
@@ -80,6 +92,7 @@ const styles = StyleSheet.create({
   sessionRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, paddingHorizontal: 14 },
   date: { width: 40, alignItems: 'center' },
   sessionText: { flex: 1, gap: 3 },
+  health: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   result: { alignItems: 'flex-end' },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: 'hidden' },
 });
