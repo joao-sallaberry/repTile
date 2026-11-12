@@ -12,7 +12,9 @@ import { healthStats } from '@/features/health/health-card';
 import { useSessionHealth } from '@/features/health/use-session-health';
 import { formatMinutes, formatVolume, summarizeSets } from '@/features/home/stats';
 import { useLocation, useMachineMap } from '@/features/places/queries';
-import { updateRoutineFromSession } from '@/features/session/repo';
+import { routineUpdateOptions, updateRoutineFromSession } from '@/features/session/repo';
+import type { RoutineUpdateOptions } from '@/features/session/routine-update';
+import { RoutineUpdateDialog } from '@/features/session/routine-update-dialog';
 import { countsTowardStats } from '@/features/session/sets';
 import { bestSet, describeSet, describeSetCounts, loadSessionRecords, type SessionRecord } from '@/features/session/summary';
 import { BLOCK_KIND_ICON, describeBlockFormat, isWod } from '@/features/workouts/blocks';
@@ -30,6 +32,7 @@ export default function SummaryScreen() {
   const machineMap = useMachineMap();
   const [records, setRecords] = useState<SessionRecord[]>([]);
   const [routineUpdated, setRoutineUpdated] = useState(false);
+  const [updateOptions, setUpdateOptions] = useState<RoutineUpdateOptions | null>(null);
   const health = useSessionHealth(id, true);
 
   const { data: session } = useLiveQuery(db.query.sessions.findFirst({ where: eq(sessions.id, id) }), [id]);
@@ -74,18 +77,15 @@ export default function SummaryScreen() {
   const exercises = [...byPosition.values()];
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
-  const updateRoutine = () =>
-    Alert.alert('Atualizar rotina?', 'As metas da rotina passam a ser as séries, cargas e reps feitas hoje.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Atualizar',
-        onPress: async () => {
-          const changed = await updateRoutineFromSession(session.id);
-          if (changed) setRoutineUpdated(true);
-          else Alert.alert('Nada para atualizar', 'Nenhum exercício da rotina foi feito neste treino.');
-        },
-      },
-    ]);
+  const updateRoutine = async () => {
+    const available = await routineUpdateOptions(session.id);
+    if (available?.structure || available?.values) setUpdateOptions(available);
+    else Alert.alert('Nada para atualizar', 'A rotina já está igual a este treino.');
+  };
+  const confirmUpdate = async (options: RoutineUpdateOptions) => {
+    setUpdateOptions(null);
+    if (await updateRoutineFromSession(session.id, options)) setRoutineUpdated(true);
+  };
 
   const card = { backgroundColor: theme.colors.elevation.level2 };
   const muted = { color: theme.colors.onSurfaceVariant };
@@ -228,10 +228,16 @@ export default function SummaryScreen() {
             disabled={routineUpdated}
             contentStyle={styles.secondaryBtn}
             onPress={updateRoutine}>
-            {routineUpdated ? 'Rotina atualizada' : 'Atualizar rotina com estes valores'}
+            {routineUpdated ? 'Rotina atualizada' : 'Atualizar rotina com este treino'}
           </Button>
         )}
       </View>
+
+      <RoutineUpdateDialog
+        available={updateOptions}
+        onDismiss={() => setUpdateOptions(null)}
+        onConfirm={(options) => void confirmUpdate(options)}
+      />
     </ScrollView>
   );
 }

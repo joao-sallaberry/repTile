@@ -28,6 +28,12 @@ import {
 import { blocksOf, pickVariant, variantKeys, variantLocation, type VariantKey } from '@/features/workouts/variants';
 import { createdFields, touched } from '@/lib/ids';
 
+import {
+  routineUpdateChanges,
+  updateRoutineBlocks,
+  type RoutineUpdateOptions,
+  type SessionBlockInput,
+} from './routine-update';
 import { countsTowardStats, pairPrevious } from './sets';
 
 export type PerformedSetRow = PerformedSet & {
@@ -598,64 +604,64 @@ export async function deleteSession(id: string) {
 }
 
 /**
- * "Atualizar rotina com estes valores": the routine's targets become what was done in this session.
- * Exercises blocks: each routine item takes the completed sets (type, reps, load, machine) of the same exercise
- * in the matching session block (and its equipment); WOD blocks: each movement takes its reps and load. Items not done, and exercises
- * added during the session, are left as they are. Returns how many items changed.
+ * The routine variant a finished session ran, and the session's blocks and exercises in order, for
+ * "Atualizar rotina" (`routine-update.ts`). `null` for a "Treino livre" or a deleted routine.
  */
-export async function updateRoutineFromSession(sessionId: string): Promise<number> {
+async function routineUpdateInput(sessionId: string) {
   const session = await db.query.sessions.findFirst({ where: eq(sessions.id, sessionId) });
-  if (!session?.workoutId) return 0;
+  if (!session?.workoutId) return null;
   const draft = await getWorkoutDraft(session.workoutId);
-  if (!draft) return 0;
+  if (!draft) return null;
   const sBlocks = await db
     .select()
     .from(sessionBlocks)
-    .where(and(eq(sessionBlocks.sessionId, sessionId), isNull(sessionBlocks.deletedAt)));
+    .where(and(eq(sessionBlocks.sessionId, sessionId), isNull(sessionBlocks.deletedAt)))
+    .orderBy(asc(sessionBlocks.position));
   const sets = await db
     .select()
     .from(sessionSets)
     .where(and(eq(sessionSets.sessionId, sessionId), isNull(sessionSets.deletedAt)))
     .orderBy(asc(sessionSets.position), asc(sessionSets.setIndex));
 
-  let changed = 0;
-  for (const block of draft.blocks) {
-    const sb = sBlocks.find((b) => b.workoutBlockId && b.workoutBlockId === block.id);
-    if (!sb) continue;
-    // One group per exercise of the session block, in order.
+  const blocks: SessionBlockInput[] = sBlocks.map((sb) => {
+    // One exercise per position, in order.
     const groups = new Map<number, SessionSet[]>();
     for (const s of sets) if (s.sessionBlockId === sb.id) groups.set(s.position, [...(groups.get(s.position) ?? []), s]);
-    const unused = [...groups.values()];
+    return {
+      ...configOf(sb),
+      workoutBlockId: sb.workoutBlockId,
+      exercises: [...groups.values()].map((g) => ({ exerciseId: g[0].exerciseId, sets: g })),
+    };
+  });
+  // The variant run: the one of the routine blocks the session came from, else the one the location would pick.
+  const ran = draft.blocks.find((b) => b.id && sBlocks.some((sb) => sb.workoutBlockId === b.id));
+  const variant = ran
+    ? ran.locationId
+    : pickVariant(variantKeys(draft.blocks), draft.locationId, session.locationId).variant;
+  return { workoutId: session.workoutId, draft, variant, routine: blocksOf(draft.blocks, variant), blocks };
+}
 
-    for (const item of block.items) {
-      const i = unused.findIndex((g) => g[0].exerciseId === item.exerciseId);
-      if (i < 0) continue;
-      const [group] = unused.splice(i, 1);
-      if (block.kind === 'exercises') {
-        const done = group.filter((s) => s.completedAt);
-        if (!done.length) continue;
-        item.sets = done.map((s, j) => ({
-          id: item.sets[j]?.id,
-          type: s.type,
-          reps: s.reps,
-          weight: s.weight ?? 0,
-          durationSec: s.durationSec,
-          distanceM: s.distanceM,
-          calories: s.calories,
-        }));
-        item.equipment = done[0].equipment ?? item.equipment;
-        item.machineId = hasStation(item.equipment) ? (done[0].machineId ?? item.machineId) : null;
-      } else {
-        const m = group[0];
-        item.reps = m.reps;
-        item.weight = m.weight;
-        item.durationSec = m.durationSec;
-        item.distanceM = m.distanceM;
-        item.calories = m.calories;
-      }
-      changed++;
-    }
-  }
-  if (changed) await saveWorkout(session.workoutId, draft);
-  return changed;
+/** Which parts of "Atualizar rotina" would change the routine; `null` when the session has no routine. */
+export async function routineUpdateOptions(sessionId: string): Promise<RoutineUpdateOptions | null> {
+  const input = await routineUpdateInput(sessionId);
+  return input && routineUpdateChanges(input.routine, input.blocks, input.variant);
+}
+
+/**
+ * "Atualizar rotina": the routine variant the session ran takes its exercises and order and/or its sets, loads
+ * and rest (`updateRoutineBlocks`). Other variants are untouched. Returns whether anything changed.
+ */
+export async function updateRoutineFromSession(sessionId: string, options: RoutineUpdateOptions): Promise<boolean> {
+  const input = await routineUpdateInput(sessionId);
+  if (!input) return false;
+  const { workoutId, draft, variant, routine, blocks } = input;
+  const changes = routineUpdateChanges(routine, blocks, variant);
+  if (!(options.structure && changes.structure) && !(options.values && changes.values)) return false;
+  const updated = updateRoutineBlocks(routine, blocks, options, variant);
+  // Keep the variants in their order: this one's blocks where its first block was.
+  const at = draft.blocks.findIndex((b) => (b.locationId ?? null) === variant);
+  const others = draft.blocks.filter((b) => (b.locationId ?? null) !== variant);
+  const insertAt = at < 0 ? others.length : draft.blocks.slice(0, at).filter((b) => (b.locationId ?? null) !== variant).length;
+  await saveWorkout(workoutId, { ...draft, blocks: [...others.slice(0, insertAt), ...updated, ...others.slice(insertAt)] });
+  return true;
 }
