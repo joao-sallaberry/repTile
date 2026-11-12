@@ -38,3 +38,4 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0018 | [Background timer beeps play on the media stream](0018-beeps-on-media-stream.md) | Accepted | 2026-10-22 |
 | 0019 | [Drag to reorder with a hand-written list on Reanimated](0019-drag-to-reorder.md) | Accepted | 2026-10-22 |
 | 0020 | [Routines have one version per location](0020-location-variants.md) | Accepted | 2026-11-05 |
+| 0021 | [Link sessions to Google Health workouts through Health Connect](0021-health-connect-link.md) | Accepted | 2026-11-10 |

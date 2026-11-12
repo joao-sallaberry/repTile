@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { db } from '@/db/client';
 import { sessionBlocks, sessions, sessionSets, type SessionSet } from '@/db/schema';
+import { healthStats } from '@/features/health/health-card';
+import { useSessionHealth } from '@/features/health/use-session-health';
 import { formatMinutes, formatVolume, summarizeSets } from '@/features/home/stats';
 import { useLocation, useMachineMap } from '@/features/places/queries';
 import { updateRoutineFromSession } from '@/features/session/repo';
@@ -28,6 +30,7 @@ export default function SummaryScreen() {
   const machineMap = useMachineMap();
   const [records, setRecords] = useState<SessionRecord[]>([]);
   const [routineUpdated, setRoutineUpdated] = useState(false);
+  const health = useSessionHealth(id, true);
 
   const { data: session } = useLiveQuery(db.query.sessions.findFirst({ where: eq(sessions.id, id) }), [id]);
   const { data: blocks } = useLiveQuery(
@@ -128,6 +131,9 @@ export default function SummaryScreen() {
         ) : (
           <Stat label="Recordes" value="—" style={card} />
         )}
+        {healthStats(health).map((st) => (
+          <Stat key={st.label} label={st.label} value={st.value} extra={st.note ?? undefined} style={card} />
+        ))}
       </View>
 
       {records.length > 0 && (

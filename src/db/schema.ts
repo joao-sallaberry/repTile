@@ -190,6 +190,37 @@ export const sessions = sqliteTable(
   (t) => [index('sessions_started_idx').on(t.startedAt)],
 );
 
+/**
+ * Health Connect data (Google Health / Fitbit) linked to a finished session (ADR 0021): a snapshot of the
+ * matching exercise record, its heart rate and calories, since Health Connect only reads 30 days back.
+ * `unlinked` marks a session the user unlinked, so the automatic match leaves it alone.
+ */
+export const sessionHealth = sqliteTable(
+  'session_health',
+  {
+    ...syncColumns,
+    sessionId: text('session_id').notNull(),
+    /** Health Connect ExerciseSession record id. */
+    recordId: text('record_id'),
+    /** Package name of the app that wrote the record (e.g. Google Health). */
+    source: text('source'),
+    /** Health Connect exercise type (int constant). */
+    exerciseType: integer('exercise_type'),
+    title: text('title'),
+    startedAt: integer('started_at'),
+    finishedAt: integer('finished_at'),
+    avgHr: integer('avg_hr'),
+    maxHr: integer('max_hr'),
+    minHr: integer('min_hr'),
+    /** kcal: active calories when available, else total. */
+    calories: integer('calories'),
+    /** Average bpm per minute of the record (null = no reading that minute). */
+    hrSeries: text('hr_series', { mode: 'json' }).$type<(number | null)[]>(),
+    unlinked: integer('unlinked', { mode: 'boolean' }).notNull().default(false),
+  },
+  (t) => [index('session_health_session_idx').on(t.sessionId)],
+);
+
 /** A block as performed in a session: a snapshot of its config plus the WOD result. */
 export const sessionBlocks = sqliteTable(
   'session_blocks',
@@ -291,6 +322,7 @@ export type SessionBlock = typeof sessionBlocks.$inferSelect;
 export type WorkoutItem = typeof workoutItems.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type SessionSet = typeof sessionSets.$inferSelect;
+export type SessionHealth = typeof sessionHealth.$inferSelect;
 export type WorkoutItemSet = typeof workoutItemSets.$inferSelect;
 export type Location = typeof locations.$inferSelect;
 export type Machine = typeof machines.$inferSelect;
@@ -309,4 +341,5 @@ export const SYNC_TABLES = {
   sessions,
   sessionBlocks,
   sessionSets,
+  sessionHealth,
 } as const;

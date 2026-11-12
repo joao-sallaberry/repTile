@@ -11,6 +11,9 @@ import { DateField, TimeField } from '@/components/time-field';
 import { db } from '@/db/client';
 import { sessionBlocks, sessions, sessionSets, workouts, type SessionBlock, type SessionSet } from '@/db/schema';
 import { plural } from '@/features/history/session-card';
+import { HealthCard, healthStats } from '@/features/health/health-card';
+import { HealthLinkDialog } from '@/features/health/link-dialog';
+import { useSessionHealth } from '@/features/health/use-session-health';
 import { useRoutineSessions } from '@/features/home/queries';
 import { formatMinutes, formatVolume, summarizeSets } from '@/features/home/stats';
 import { useLocation, useMachineMap } from '@/features/places/queries';
@@ -53,6 +56,7 @@ export default function SessionDetailScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [times, setTimes] = useState<{ start: number; end: number } | null>(null);
   const [records, setRecords] = useState<SessionRecord[]>([]);
+  const [healthOpen, setHealthOpen] = useState(false);
 
   const { data: session } = useLiveQuery(db.query.sessions.findFirst({ where: eq(sessions.id, id) }), [id]);
   const { data: blocks } = useLiveQuery(
@@ -78,6 +82,7 @@ export default function SessionDetailScreen() {
   );
   const runs = useRoutineSessions(workoutId);
   const location = useLocation(session?.locationId);
+  const health = useSessionHealth(id, session?.finishedAt != null);
 
   const plainBlockIds = useMemo(() => new Set(blocks.filter((b) => b.kind === 'exercises').map((b) => b.id)), [blocks]);
   const plainSets = useMemo(
@@ -108,6 +113,7 @@ export default function SessionDetailScreen() {
         ]
       : []),
     { label: 'Recordes', value: records.length ? String(records.length) : '—', note: recordNames.slice(0, 2).join(', ') || null, pr: records.length > 0 },
+    ...healthStats(health),
   ];
 
   const confirmDelete = () =>
@@ -143,6 +149,14 @@ export default function SessionDetailScreen() {
                 onPress={() => {
                   setMenuOpen(false);
                   setTimes(normalizeTimes(session.startedAt, end));
+                }}
+              />
+              <Menu.Item
+                leadingIcon="heart-pulse"
+                title="Dados do Google Health"
+                onPress={() => {
+                  setMenuOpen(false);
+                  setHealthOpen(true);
                 }}
               />
               <Menu.Item
@@ -210,6 +224,8 @@ export default function SessionDetailScreen() {
             </View>
           ))}
         </View>
+
+        {health && <HealthCard health={health} />}
 
         {session.notes ? (
           <View style={[styles.notes, { backgroundColor: theme.colors.elevation.level1 }]}>
@@ -328,6 +344,7 @@ export default function SessionDetailScreen() {
         )}
       </ScrollView>
 
+      <HealthLinkDialog session={session} health={health} visible={healthOpen} onDismiss={() => setHealthOpen(false)} />
       <Portal>
         <Dialog visible={times != null} onDismiss={() => setTimes(null)}>
           <Dialog.Title>Editar data e horários</Dialog.Title>

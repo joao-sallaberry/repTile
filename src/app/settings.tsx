@@ -3,6 +3,7 @@ import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { Card, List, Switch, Text } from 'react-native-paper';
 
 import { FilterChip } from '@/components/filter-chips';
+import { HealthSettings } from '@/features/health/health-settings';
 import { useWeeklyGoal } from '@/features/home/goal';
 import { useSessionPreferences } from '@/features/session/preferences';
 import { TimerPermissionsList } from '@/features/timer/permissions-list';
@@ -56,6 +57,17 @@ export default function SettingsScreen() {
           right={(p) => <List.Icon {...p} icon="chevron-right" />}
           onPress={() => router.push('/locations')}
         />
+      </Card>
+
+      <Text variant="titleMedium" style={styles.section}>
+        Google Health
+      </Text>
+      <Text variant="bodySmall" style={styles.muted}>
+        Mostra a frequência cardíaca e as calorias do relógio (Fitbit, Pixel Watch) em cada treino, lidas do Health
+        Connect.
+      </Text>
+      <Card mode="contained">
+        <HealthSettings />
       </Card>
 
       <Text variant="titleMedium" style={styles.section}>

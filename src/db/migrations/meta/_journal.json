@@ -92,6 +92,13 @@
       "when": 1793915837595,
       "tag": "0012_location_variants",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1794282572645,
+      "tag": "0013_session_health",
+      "breakpoints": true
     }
   ]
 }
