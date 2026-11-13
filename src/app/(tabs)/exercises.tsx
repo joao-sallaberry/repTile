@@ -14,7 +14,8 @@ import { useExerciseMarks } from '@/features/stats/queries';
 import { equipmentText } from '@/features/workouts/equipment';
 import { useExercises } from '@/features/workouts/queries';
 
-type Row = { key: string; exercise: Exercise };
+/** `recent`: a row of "Feitos há pouco", which says when the exercise was last done. */
+type Row = { key: string; exercise: Exercise; recent?: boolean };
 
 export default function ExercisesScreen() {
   const all = useExercises();
@@ -37,7 +38,7 @@ export default function ExercisesScreen() {
     const byId = new Map(all.map((e) => [e.id, e]));
     const recent = recentExerciseIds(marks, now).flatMap((id) => {
       const exercise = byId.get(id);
-      return exercise ? [{ key: `recent:${id}`, exercise }] : [];
+      return exercise ? [{ key: `recent:${id}`, exercise, recent: true }] : [];
     });
     return recent.length ? [{ title: 'Feitos há pouco', note: 'últimos 7 dias', data: recent }, ...list] : list;
   }, [all, marks, now, query, equipment, categories]);
@@ -47,13 +48,14 @@ export default function ExercisesScreen() {
   return (
     <View style={styles.flex}>
       <Appbar.Header>
-        <Appbar.Content
-          title="Exercícios"
-          subtitle={[plural(all.length, 'exercício', 'exercícios'), records ? `${plural(records, 'recorde', 'recordes')} este mês` : null]
-            .filter(Boolean)
-            .join(' · ')}
-        />
+        <Appbar.Content title="Exercícios" />
       </Appbar.Header>
+      {/* Paper's MD3 Appbar ignores `subtitle`, so the counts go below the header (as in Treinos). */}
+      <Text variant="bodyMedium" style={[styles.muted, styles.count]}>
+        {[plural(all.length, 'exercício', 'exercícios'), records ? `${plural(records, 'recorde', 'recordes')} este mês` : null]
+          .filter(Boolean)
+          .join(' · ')}
+      </Text>
       <Searchbar placeholder="Buscar exercício" value={query} onChangeText={setQuery} style={styles.search} />
       <CategoryFilter exercises={all} value={categories} onChange={setCategories} label="GRUPO" style={styles.filter} />
       <EquipmentFilter exercises={all} value={equipment} onChange={setEquipment} label="EQUIP." style={styles.filter} />
@@ -72,13 +74,13 @@ export default function ExercisesScreen() {
             </Text>
           </View>
         )}
-        renderItem={({ item: { exercise } }) => (
+        renderItem={({ item: { exercise, recent } }) => (
           <List.Item
             title={exercise.name}
             description={`${equipmentText(exercise)} · ${MEASURE_LABEL[exercise.measure]}`}
             descriptionNumberOfLines={1}
             left={(p) => <ExerciseThumb exerciseId={exercise.id} equipment={exercise.equipment[0]} style={p.style} />}
-            right={() => <Mark mark={marks.get(exercise.id)} now={now} />}
+            right={() => <Mark mark={marks.get(exercise.id)} now={now} recent={recent} />}
             onPress={() => router.push({ pathname: '/exercise/[id]', params: { id: exercise.id } })}
           />
         )}
@@ -94,8 +96,11 @@ export default function ExercisesScreen() {
   );
 }
 
-/** The exercise's best set and when it was done; a recent record gets the green "PR" badge. */
-function Mark({ mark, now }: { mark: ExerciseMark | undefined; now: number }) {
+/**
+ * The exercise's best set and when it was done; a recent record gets the green "PR" badge. In "Feitos há pouco"
+ * (`recent`) a best set that isn't a new record shows when the exercise was last done instead.
+ */
+function Mark({ mark, now, recent }: { mark: ExerciseMark | undefined; now: number; recent?: boolean }) {
   const theme = useTheme();
   if (!mark) {
     return (
@@ -118,7 +123,7 @@ function Mark({ mark, now }: { mark: ExerciseMark | undefined; now: number }) {
         </Text>
       ) : (
         <Text variant="bodySmall" style={styles.muted}>
-          {when}
+          {recent ? `feito ${relativeDays(mark.lastAt, now)}` : when}
         </Text>
       )}
     </View>
@@ -131,6 +136,7 @@ const styles = StyleSheet.create({
   filter: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
   header: { flexDirection: 'row', alignItems: 'baseline', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
   muted: { opacity: 0.7 },
+  count: { marginHorizontal: 16, marginBottom: 8 },
   empty: { padding: 24, textAlign: 'center', opacity: 0.7 },
   list: { paddingBottom: 96 },
   mark: { alignSelf: 'center', alignItems: 'flex-end', gap: 3, marginLeft: 8 },

@@ -232,7 +232,7 @@ export default function ExerciseDetailScreen() {
                 value: metricOf(c),
                 highlight: metricOf(c) === maxMetric,
               }))}
-              format={(v) => (Number.isInteger(v) ? String(v) : v.toFixed(1))}
+              format={(v) => (Number.isInteger(v) ? String(v) : v.toFixed(1).replace('.', ','))}
             />
           </Card.Content>
         </Card>

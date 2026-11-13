@@ -17,7 +17,8 @@ import { markWelcomeSeen } from '@/lib/welcome';
  * next one still missing, so the three can be granted without hunting for each row.
  */
 export default function WelcomeScreen() {
-  const { status, refresh } = useTimerPermissions();
+  const permissions = useTimerPermissions();
+  const { status, refresh } = permissions;
   const finish = () => {
     markWelcomeSeen();
     router.replace('/');
@@ -53,7 +54,7 @@ export default function WelcomeScreen() {
             </Text>
           )}
           <Card mode="contained">
-            <TimerPermissionsList />
+            <TimerPermissionsList {...permissions} />
           </Card>
         </View>
         <Text variant="bodySmall" style={[styles.center, styles.muted]}>

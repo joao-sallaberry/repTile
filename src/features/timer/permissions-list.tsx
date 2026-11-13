@@ -29,10 +29,12 @@ export function useTimerPermissions() {
   return { status, refresh };
 }
 
-/** One row per permission the timer alerts need, with its state or a button to grant it. */
-export function TimerPermissionsList() {
+/**
+ * One row per permission the timer alerts need, with its state or a button to grant it. Takes the screen's
+ * `useTimerPermissions()` so the list and the screen's own counters or buttons never disagree.
+ */
+export function TimerPermissionsList({ status, refresh }: ReturnType<typeof useTimerPermissions>) {
   const theme = useTheme();
-  const { status, refresh } = useTimerPermissions();
   if (Platform.OS !== 'android' || !status) return null;
 
   const granted = (p: { style?: object }) => <List.Icon {...p} icon="check-circle" color={theme.colors.primary} />;

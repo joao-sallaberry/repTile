@@ -16,7 +16,8 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const { goal, set: setGoal } = useWeeklyGoal();
   const { restAfterWarmup, setRestAfterWarmup } = useSessionPreferences();
-  const { status } = useTimerPermissions();
+  const permissions = useTimerPermissions();
+  const { status } = permissions;
   const locations = useLocations();
   const machineMap = useMachineMap();
   const machineCount = [...machineMap.values()].filter((m) => m.deletedAt == null).length;
@@ -103,7 +104,7 @@ export default function SettingsScreen() {
         Necessárias para ouvir o fim do descanso e os intervalos do WOD com a tela apagada.
       </Text>
       <Card mode="contained">
-        <TimerPermissionsList />
+        <TimerPermissionsList {...permissions} />
       </Card>
 
       <Text variant="titleMedium" style={styles.section}>
