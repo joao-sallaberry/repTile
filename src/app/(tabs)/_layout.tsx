@@ -19,7 +19,7 @@ export default function TabsLayout() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="workouts">
         <NativeTabs.Trigger.Label>Treinos</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="list.bullet.clipboard" md="fitness_center" />
+        <NativeTabs.Trigger.Icon sf="list.bullet.clipboard" md="assignment" />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="history">
         <NativeTabs.Trigger.Label>Histórico</NativeTabs.Trigger.Label>
@@ -27,7 +27,7 @@ export default function TabsLayout() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="exercises">
         <NativeTabs.Trigger.Label>Exercícios</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="trophy" md="emoji_events" />
+        <NativeTabs.Trigger.Icon sf="dumbbell" md="fitness_center" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );
