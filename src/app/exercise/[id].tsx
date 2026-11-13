@@ -3,7 +3,7 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, Chip, Dialog, IconButton, List, Portal, Text } from 'react-native-paper';
+import { Button, Card, Chip, Dialog, IconButton, List, Portal, Text, useTheme } from 'react-native-paper';
 
 import { BarChart } from '@/components/bar-chart';
 import { ExerciseMedia, hasExerciseMedia } from '@/components/exercise-media';
@@ -16,7 +16,9 @@ import { mediaEquipment } from '@/features/exercises/media-map';
 import { useMachineMap } from '@/features/places/queries';
 import { performedSets, type PerformedSetRow } from '@/features/session/repo';
 import { countsTowardStats } from '@/features/session/sets';
-import { computePRs, estimateOneRepMax, type PerformedSet } from '@/features/stats/prs';
+import { describeSet } from '@/features/session/summary';
+import { isFresh } from '@/features/stats/exercise-list';
+import { computePRs, estimateOneRepMax } from '@/features/stats/prs';
 import { defaultEquipment, equipmentLabel, equipmentText, hasStation, stationNoun } from '@/features/workouts/equipment';
 import { deleteExercise, updateExercise } from '@/features/workouts/repo';
 import { formatDate, formatWeight } from '@/lib/format';
@@ -29,6 +31,14 @@ function stationsTitle(equipment: Equipment[]) {
   const machine = equipment.includes('machine') || !equipment.includes('cable');
   return machine && equipment.includes('cable') ? 'Máquinas e polias' : machine ? 'Máquinas' : 'Polias';
 }
+
+/** What the "Evolução" chart plots for each session. */
+const METRICS = [
+  { key: 'weight', label: 'Carga', subtitle: 'Carga da melhor série por treino' },
+  { key: 'orm', label: '1RM estimado', subtitle: '1RM estimado da melhor série por treino' },
+  { key: 'volume', label: 'Volume', subtitle: 'Volume do exercício por treino' },
+] as const;
+type Metric = (typeof METRICS)[number]['key'];
 
 const shortDate = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' });
 
@@ -54,6 +64,8 @@ export default function ExerciseDetailScreen() {
   const [equipment, setEquipment] = useState<Equipment[] | null>(null);
   // Which equipment's illustration is shown; follows the history filter.
   const [shownEquipment, setShownEquipment] = useState<Equipment | null>(null);
+  const [metric, setMetric] = useState<Metric>('weight');
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     performedSets(id).then((rows) => setAllSets(rows.filter((r) => countsTowardStats(r.type))));
@@ -65,20 +77,22 @@ export default function ExerciseDetailScreen() {
     for (const s of allSets) if (!map.has(variantKey(s))) map.set(variantKey(s), s);
     return [...map.entries()];
   }, [allSets]);
-  const sets: PerformedSet[] = useMemo(
+  const sets: PerformedSetRow[] = useMemo(
     () => (variantFilter === undefined ? allSets : allSets.filter((s) => variantKey(s) === variantFilter)),
     [allSets, variantFilter],
   );
 
   const prs = useMemo(() => computePRs(sets), [sets]);
 
-  // Best set (highest estimated 1RM) of each session.
+  // Each session's sets, with the best one (highest estimated 1RM), oldest session first.
   const perSession = useMemo(() => {
-    const map = new Map<string, { at: number; best: PerformedSet; orm: number }>();
+    const map = new Map<string, { at: number; best: PerformedSetRow; orm: number; volume: number; sets: PerformedSetRow[] }>();
     for (const s of sets) {
       const orm = estimateOneRepMax(s.weight ?? 0, s.reps ?? 0);
       const cur = map.get(s.sessionId);
-      if (!cur || orm > cur.orm) map.set(s.sessionId, { at: s.completedAt, best: s, orm });
+      const volume = (cur?.volume ?? 0) + (s.weight ?? 0) * (s.reps ?? 0);
+      const list = [...(cur?.sets ?? []), s];
+      map.set(s.sessionId, !cur || orm > cur.orm ? { at: s.completedAt, best: s, orm, volume, sets: list } : { ...cur, volume, sets: list });
     }
     return [...map.values()].sort((a, b) => a.at - b.at);
   }, [sets]);
@@ -87,6 +101,11 @@ export default function ExerciseDetailScreen() {
   const illustrated = exercise.equipment.filter((e) => mediaEquipment(exercise.id).includes(e));
   const chart = perSession.slice(-10);
   const maxWeight = Math.max(...chart.map((c) => c.best.weight ?? 0), 0);
+  const metricOf = (c: (typeof chart)[number]) =>
+    metric === 'weight' ? (c.best.weight ?? 0) : metric === 'orm' ? Math.round(c.orm * 2) / 2 : Math.round(c.volume);
+  const maxMetric = Math.max(...chart.map(metricOf), 0);
+  // A record of the last days is marked as new, once there is an earlier session to beat.
+  const fresh = (at: number | undefined) => perSession.length > 1 && at != null && isFresh(at, now);
 
   const confirmDelete = () =>
     Alert.alert('Excluir exercício?', 'Ele deixará de aparecer na lista. O histórico é mantido.', [
@@ -190,21 +209,28 @@ export default function ExerciseDetailScreen() {
       ) : null}
 
       <View style={styles.grid}>
-        <Stat label="Maior carga" value={prs.maxWeight ? `${formatWeight(prs.maxWeight.value)} × ${prs.maxWeight.reps}` : '—'} sub={prs.maxWeight && formatDate(prs.maxWeight.at)} />
-        <Stat label="1RM estimado" value={prs.bestOneRepMax ? formatWeight(Math.round(prs.bestOneRepMax.value * 2) / 2) : '—'} sub={prs.bestOneRepMax && formatDate(prs.bestOneRepMax.at)} />
-        <Stat label="Máx. reps" value={prs.maxReps ? String(prs.maxReps.value) : '—'} sub={prs.maxReps && formatDate(prs.maxReps.at)} />
-        <Stat label="Maior volume" value={prs.bestSessionVolume ? formatWeight(prs.bestSessionVolume.value) : '—'} sub={prs.bestSessionVolume && formatDate(prs.bestSessionVolume.at)} />
+        <Stat label="Maior carga" value={prs.maxWeight ? `${formatWeight(prs.maxWeight.value)} × ${prs.maxWeight.reps}` : '—'} at={prs.maxWeight?.at} fresh={fresh(prs.maxWeight?.at)} />
+        <Stat label="1RM estimado" value={prs.bestOneRepMax ? formatWeight(Math.round(prs.bestOneRepMax.value * 2) / 2) : '—'} at={prs.bestOneRepMax?.at} fresh={fresh(prs.bestOneRepMax?.at)} />
+        <Stat label="Máx. reps" value={prs.maxReps ? String(prs.maxReps.value) : '—'} at={prs.maxReps?.at} fresh={fresh(prs.maxReps?.at)} />
+        <Stat label="Maior volume" value={prs.bestSessionVolume ? formatWeight(prs.bestSessionVolume.value) : '—'} at={prs.bestSessionVolume?.at} fresh={fresh(prs.bestSessionVolume?.at)} />
       </View>
 
       {chart.length > 1 && maxWeight > 0 && (
         <Card mode="contained">
-          <Card.Title title="Evolução" subtitle="Carga da melhor série por treino" />
-          <Card.Content>
+          <Card.Title title="Evolução" subtitle={METRICS.find((m) => m.key === metric)?.subtitle} />
+          <Card.Content style={styles.chart}>
+            <View style={styles.chips}>
+              {METRICS.map((m) => (
+                <FilterChip key={m.key} compact selected={metric === m.key} onPress={() => setMetric(m.key)}>
+                  {m.label}
+                </FilterChip>
+              ))}
+            </View>
             <BarChart
               data={chart.map((c) => ({
                 label: shortDate.format(new Date(c.at)),
-                value: c.best.weight ?? 0,
-                highlight: (c.best.weight ?? 0) === maxWeight,
+                value: metricOf(c),
+                highlight: metricOf(c) === maxMetric,
               }))}
               format={(v) => (Number.isInteger(v) ? String(v) : v.toFixed(1))}
             />
@@ -242,8 +268,10 @@ export default function ExerciseDetailScreen() {
           {[...perSession].reverse().slice(0, 15).map((c) => (
             <List.Item
               key={c.best.sessionId}
-              title={formatDate(c.at)}
-              description={c.best.weight ? `${formatWeight(c.best.weight)} × ${c.best.reps}` : `${c.best.reps} reps`}
+              title={`${formatDate(c.at)} · ${c.best.sessionName}`}
+              description={[...c.sets].sort((a, b) => a.setIndex - b.setIndex).map(describeSet).join(' · ')}
+              descriptionNumberOfLines={2}
+              right={() => (c.sets.some((x) => x.isPr) ? <PrBadge /> : null)}
               onPress={() => router.push({ pathname: '/history/[id]', params: { id: c.best.sessionId } })}
             />
           ))}
@@ -257,15 +285,31 @@ export default function ExerciseDetailScreen() {
   );
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string | null }) {
+function Stat({ label, value, at, fresh }: { label: string; value: string; at?: number; fresh?: boolean }) {
+  const theme = useTheme();
   return (
     <Card mode="contained" style={styles.stat}>
       <Card.Content>
         <Text variant="labelMedium">{label}</Text>
         <Text variant="titleLarge">{value}</Text>
-        {sub ? <Text variant="labelSmall">{sub}</Text> : null}
+        {at != null && (
+          <Text variant="labelSmall" style={fresh ? { color: theme.colors.tertiary, fontWeight: '700' } : undefined}>
+            {fresh ? `novo · ${formatDate(at)}` : formatDate(at)}
+          </Text>
+        )}
       </Card.Content>
     </Card>
+  );
+}
+
+function PrBadge() {
+  const theme = useTheme();
+  return (
+    <Text
+      variant="labelSmall"
+      style={[styles.badge, { backgroundColor: theme.colors.tertiaryContainer, color: theme.colors.onTertiaryContainer }]}>
+      PR
+    </Text>
   );
 }
 
@@ -277,4 +321,6 @@ const styles = StyleSheet.create({
   stat: { flexBasis: '48%', flexGrow: 1 },
   empty: { textAlign: 'center', padding: 24, opacity: 0.7 },
   hint: { marginTop: 12, opacity: 0.7 },
+  chart: { gap: 12 },
+  badge: { alignSelf: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: 'hidden' },
 });

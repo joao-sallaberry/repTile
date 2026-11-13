@@ -41,6 +41,10 @@ export type PerformedSetRow = PerformedSet & {
   equipment: Equipment | null;
   machineId: string | null;
   setIndex: number;
+  /** The set was flagged as a record when it was completed (ADR 0009). */
+  isPr: boolean;
+  /** Name of the session it belongs to. */
+  sessionName: string;
 };
 
 /**
@@ -62,6 +66,8 @@ export async function performedSets(
       equipment: sessionSets.equipment,
       machineId: sessionSets.machineId,
       setIndex: sessionSets.setIndex,
+      isPr: sessionSets.isPr,
+      sessionName: sessions.name,
     })
     .from(sessionSets)
     .innerJoin(sessions, eq(sessions.id, sessionSets.sessionId))
