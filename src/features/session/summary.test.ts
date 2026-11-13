@@ -1,4 +1,4 @@
-import { bestSet, describeSetCounts, describeSetRecord } from './summary';
+import { bestSet, describeSetCounts, describeSetRecord, finishSummary } from './summary';
 
 // summary.ts also loads records from the database; these tests only cover its pure helpers (jest hoists the mock).
 jest.mock('@/db/client', () => ({ db: {} }));
@@ -30,4 +30,15 @@ test('describeSetRecord: heavier load, else estimated 1RM', () => {
   expect(orm.what).toBe('1RM estimado');
   expect(orm.detail).toMatch(/^88,7 kg \(70 kg × 8\) · antes 84 kg$/);
   expect(describeSetRecord({ weight: 50, reps: 5 }, [])).toEqual({ what: 'maior carga', detail: '50 kg × 5' });
+});
+
+test('finishSummary counts done and pending sets, and one record per exercise', () => {
+  const set = (position: number, completedAt: number | null, isPr = false) => ({ position, completedAt, isPr });
+  expect(finishSummary([set(0, 1, true), set(0, 2, true), set(1, 3), set(1, null), set(2, null, true)])).toEqual({
+    done: 3,
+    total: 5,
+    pending: 2,
+    prs: 1,
+  });
+  expect(finishSummary([])).toEqual({ done: 0, total: 0, pending: 0, prs: 0 });
 });

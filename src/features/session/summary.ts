@@ -37,6 +37,20 @@ export function bestSet<T extends LoadSet>(sets: T[]): T | undefined {
   );
 }
 
+/**
+ * What the finish dialog tells before saving: sets done out of the planned ones, and how many exercises got a
+ * record (one per exercise, like everywhere else). Sets left undone stay out of the history.
+ */
+export function finishSummary(sets: Pick<SessionSet, 'completedAt' | 'isPr' | 'position'>[]) {
+  const done = sets.filter((s) => s.completedAt != null);
+  return {
+    done: done.length,
+    total: sets.length,
+    pending: sets.length - done.length,
+    prs: new Set(done.filter((s) => s.isPr).map((s) => s.position)).size,
+  };
+}
+
 /** "82,5 kg × 8", or "12 reps" without load. */
 export const describeSet = (s: LoadSet) => (s.weight ? `${formatWeight(s.weight)} × ${s.reps ?? 0}` : `${s.reps ?? 0} reps`);
 
