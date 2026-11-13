@@ -1,5 +1,5 @@
 import { summarizeHeartRate } from './heart-rate';
-import { autoLinkMessage, bestMatch, exerciseName, exerciseTypeLabel, healthLine, sourceLabel } from './match';
+import { autoLinkMessage, bestMatch, exerciseName, exerciseTypeLabel, healthLine, overlapLabel, sourceLabel } from './match';
 
 const min = (m: number) => m * 60_000;
 const ex = (id: string, start: number, end: number) => ({
@@ -92,4 +92,12 @@ describe('healthLine', () => {
     expect(healthLine({ avgHr: null, calories: 215 })).toBe('215 kcal');
     expect(healthLine({ avgHr: null, calories: null })).toBe('Google Health');
   });
+});
+
+test('overlapLabel', () => {
+  const session = { start: min(60), end: min(120) };
+  expect(overlapLabel(session, ex('a', 59, 123))).toBe('100% do treino');
+  expect(overlapLabel(session, ex('a', 90, 150))).toBe('50% do treino');
+  expect(overlapLabel(session, ex('a', 10, 50))).toBe('antes do treino');
+  expect(overlapLabel(session, ex('a', 120, 150))).toBe('depois do treino');
 });

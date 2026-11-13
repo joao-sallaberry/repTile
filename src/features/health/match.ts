@@ -36,6 +36,17 @@ export function bestMatch<T extends HealthExercise>(
   return best;
 }
 
+/**
+ * How a record sits against the session, for the picker: "97% do treino" (share of the session it covers), or
+ * "antes do treino" / "depois do treino" when they don't overlap.
+ */
+export function overlapLabel(session: { start: number; end: number }, record: { start: number; end: number }): string {
+  const o = overlap(session.start, session.end, record.start, record.end);
+  const length = session.end - session.start;
+  if (o <= 0 || length <= 0) return record.end <= session.start ? 'antes do treino' : 'depois do treino';
+  return `${Math.round((o / length) * 100)}% do treino`;
+}
+
 /** pt-BR labels for the Health Connect exercise types a gym/box session is likely to be recorded as. */
 const TYPE_LABELS: Record<number, string> = {
   8: 'Bicicleta',
