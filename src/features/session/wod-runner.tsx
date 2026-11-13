@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useKeepAwake } from 'expo-keep-awake';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, type ColorValue } from 'react-native';
 import { Button, Card, Divider, IconButton, List, ProgressBar, Switch, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,11 +22,12 @@ import {
   tabataMovementIndex,
   worstRound,
 } from '@/features/workouts/blocks';
-import { describeItem } from '@/features/workouts/describe';
+import { bestWodResult, isWodPR } from '@/features/stats/prs';
+import { describeItem, describeResult } from '@/features/workouts/describe';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDuration, formatWeight } from '@/lib/format';
 
-import { updateWodProgress, type BlockResult } from './repo';
+import { previousBlockResults, updateWodProgress, type BlockResult } from './repo';
 
 const LEAD_IN_SEC = 10;
 
@@ -809,18 +810,36 @@ function ResultForm({
   );
   const [reps, setReps] = useState<number | null>(block.resultReps ?? null);
   const [rx, setRx] = useState(true);
+  const theme = useTheme();
 
-  const save = () =>
-    onSave(
-      block.kind === 'tabata'
-        ? { resultRounds: null, resultReps: tabataTotal, roundReps: roundReps.map((r) => r ?? 0), rx }
-        : {
-            resultTimeSec: block.kind === 'for_time' && !timeCapped ? timeSec : null,
-            resultRounds: rounds,
-            resultReps: block.kind === 'emom' ? null : reps,
-            rx,
-          },
-    );
+  const result: BlockResult =
+    block.kind === 'tabata'
+      ? { resultRounds: null, resultReps: tabataTotal, roundReps: roundReps.map((r) => r ?? 0), rx }
+      : {
+          resultTimeSec: block.kind === 'for_time' && !timeCapped ? timeSec : null,
+          resultRounds: rounds,
+          resultReps: block.kind === 'emom' ? null : reps,
+          rx,
+        };
+  const save = () => onSave(result);
+
+  // What this result is up against: the best earlier run of the same routine block (EMOM has no record).
+  const [previous, setPrevious] = useState<SessionBlock[]>([]);
+  useEffect(() => {
+    previousBlockResults(block).then(setPrevious, () => {});
+  }, [block]);
+  const wodKind = block.kind === 'exercises' ? null : block.kind;
+  const best = wodKind && wodKind !== 'emom' ? bestWodResult(wodKind, previous) : undefined;
+  const candidate = {
+    resultTimeSec: result.resultTimeSec ?? null,
+    resultRounds: result.resultRounds ?? null,
+    resultReps: result.resultReps ?? null,
+  };
+  const entered = candidate.resultTimeSec != null || candidate.resultRounds != null || candidate.resultReps != null;
+  const record = entered && wodKind != null && isWodPR(wodKind, candidate, previous);
+
+  const durations = block.kind === 'amrap' || block.kind === 'for_time' ? splitDurations(block.roundSplits ?? []) : [];
+  const slowest = durations.length > 1 ? durations.indexOf(Math.max(...durations)) : -1;
 
   return (
     <Card mode="contained">
@@ -855,10 +874,40 @@ function ResultForm({
             </Text>
           </>
         )}
-        {(block.kind === 'amrap' || block.kind === 'for_time') && splitsCount > 0 && (
-          <Text variant="bodyMedium" style={styles.muted}>
-            Parciais: {splitDurations(block.roundSplits!).map(formatDuration).join(' · ')}
+        {best && (
+          <Text
+            variant="bodyMedium"
+            style={
+              record
+                ? [styles.record, { backgroundColor: theme.colors.tertiaryContainer, color: theme.colors.onTertiaryContainer }]
+                : styles.muted
+            }>
+            {record ? 'Novo recorde · antes: ' : 'Melhor anterior: '}
+            {describeResult({ ...best, kind: block.kind })}
           </Text>
+        )}
+        {durations.length > 0 && (
+          <View style={styles.gap8}>
+            <View style={styles.rowBetween}>
+              <Text variant="labelLarge">Rounds</Text>
+              <Text variant="bodySmall" style={styles.muted}>
+                média {formatDuration(Math.round(durations.reduce((a, b) => a + b, 0) / durations.length))}
+                {slowest >= 0 ? ` · mais lento: round ${slowest + 1}` : ''}
+              </Text>
+            </View>
+            <View style={styles.splitGrid}>
+              {durations.map((d, i) => (
+                <View key={i} style={[styles.split, { backgroundColor: theme.colors.elevation.level3 }]}>
+                  <Text variant="bodySmall" style={styles.muted}>
+                    R{i + 1}
+                  </Text>
+                  <Text variant="titleSmall" style={[styles.num, i === slowest ? { color: SLOWEST_COLOR } : null]}>
+                    {formatDuration(d)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
         )}
         <View style={styles.rxRow}>
           <Text variant="bodyLarge">Rx (sem adaptação)</Text>
@@ -898,7 +947,13 @@ function Movements({ block, movements }: { block: SessionBlock; movements: Sessi
   );
 }
 
+/** The slowest round of a result, in the warm-up yellow. */
+const SLOWEST_COLOR = '#F5C451';
+
 const styles = StyleSheet.create({
+  record: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, overflow: 'hidden', fontWeight: '700' },
+  splitGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  split: { flexDirection: 'row', alignItems: 'baseline', gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   flex: { flex: 1 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },

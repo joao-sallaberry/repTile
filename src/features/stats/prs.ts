@@ -85,6 +85,11 @@ export function compareWodResults(type: WodKind, a: WodResult, b: WodResult): nu
   return score(a) - score(b);
 }
 
+/** The best of some results of the same WOD (`compareWodResults`); undefined when there is none. */
+export function bestWodResult<T extends WodResult>(type: WodKind, results: T[]): T | undefined {
+  return results.reduce<T | undefined>((best, r) => (!best || compareWodResults(type, r, best) > 0 ? r : best), undefined);
+}
+
 /** Whether a WOD result beats every earlier result of the same routine (never on the first time). */
 export function isWodPR(type: WodKind, result: WodResult, previous: WodResult[]): boolean {
   if (type === 'emom' || !previous.length) return false;

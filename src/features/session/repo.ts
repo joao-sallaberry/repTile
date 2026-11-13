@@ -9,6 +9,7 @@ import {
   workoutBlocks,
   type BlockKind,
   type Equipment,
+  type SessionBlock,
   type SessionSet,
   type SetType,
 } from '@/db/schema';
@@ -556,6 +557,27 @@ export async function resetBlock(sessionBlockId: string) {
   });
 }
 
+/** Finished runs of the same routine block in other sessions (the ones a WOD result is compared with). */
+const earlierRuns = (b: Pick<SessionBlock, 'id' | 'workoutBlockId'>) =>
+  and(
+    eq(sessionBlocks.workoutBlockId, b.workoutBlockId ?? ''),
+    ne(sessionBlocks.id, b.id),
+    isNotNull(sessionBlocks.finishedAt),
+    isNull(sessionBlocks.deletedAt),
+    isNull(sessions.deletedAt),
+  );
+
+/** Results of the other runs of this WOD block's routine block; empty for a block that isn't part of a routine. */
+export async function previousBlockResults(b: Pick<SessionBlock, 'id' | 'workoutBlockId'>): Promise<SessionBlock[]> {
+  if (!b.workoutBlockId) return [];
+  const rows = await db
+    .select({ block: sessionBlocks })
+    .from(sessionBlocks)
+    .innerJoin(sessions, eq(sessions.id, sessionBlocks.sessionId))
+    .where(earlierRuns(b));
+  return rows.map((r) => r.block);
+}
+
 /** Saves a WOD block's result: its movements count as done, and it may be a PR for the routine block. */
 export async function finishBlock(sessionBlockId: string, result: BlockResult) {
   const finishedAt = Date.now();
@@ -574,15 +596,7 @@ export async function finishBlock(sessionBlockId: string, result: BlockResult) {
       .select({ block: sessionBlocks })
       .from(sessionBlocks)
       .innerJoin(sessions, eq(sessions.id, sessionBlocks.sessionId))
-      .where(
-        and(
-          eq(sessionBlocks.workoutBlockId, b.workoutBlockId),
-          ne(sessionBlocks.id, b.id),
-          isNotNull(sessionBlocks.finishedAt),
-          isNull(sessionBlocks.deletedAt),
-          isNull(sessions.deletedAt),
-        ),
-      );
+      .where(earlierRuns(b));
     const isPr = isWodPR(b.kind, b, previous.map((r) => r.block));
     await tx.update(sessionBlocks).set({ isPr, ...touched() }).where(eq(sessionBlocks.id, b.id));
   });
