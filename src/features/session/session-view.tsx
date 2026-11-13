@@ -235,7 +235,10 @@ export function SessionView({ session, onFinish }: Props) {
       <ExercisePicker
         visible={pickerFor != null}
         onDismiss={() => setPickerFor(null)}
-        onPick={(exerciseId) => pickerFor && addExerciseToSession(session.id, pickerFor, exerciseId)}
+        onPick={async (ids) => {
+          // One at a time: each one takes the next position of the session.
+          if (pickerFor) for (const exerciseId of ids) await addExerciseToSession(session.id, pickerFor, exerciseId);
+        }}
       />
       <LocationPicker
         visible={locationOpen}

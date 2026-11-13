@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { ViewStyle } from 'react-native';
-import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Dialog, List, Portal, SegmentedButtons, Searchbar, Text, TextInput } from 'react-native-paper';
+import { ScrollView, SectionList, StyleSheet, View } from 'react-native';
+import { Button, Checkbox, Dialog, List, Portal, SegmentedButtons, Searchbar, Text, TextInput } from 'react-native-paper';
 
 import { ExerciseThumb } from '@/components/exercise-media';
 import { FilterChip } from '@/components/filter-chips';
 import { EQUIPMENT, MEASURES, type Equipment, type Exercise, type Measure } from '@/db/schema';
+import { recentExerciseIds } from '@/features/stats/exercise-list';
+import { useExerciseMarks } from '@/features/stats/queries';
 import { useExercises } from '@/features/workouts/queries';
 import {
   EQUIPMENT_LABEL,
@@ -129,35 +131,55 @@ export function matchesExercise(e: Exercise, query: string, equipment: Equipment
 type Props = {
   visible: boolean;
   onDismiss: () => void;
-  onPick: (exerciseId: string) => void;
+  /** The exercises picked, in the order they were tapped. */
+  onPick: (exerciseIds: string[]) => void;
 };
 
-/** Exercise search dialog, with an option to create a new one. */
+type PickerRow = { key: string; exercise: Exercise };
+
+/**
+ * Exercise search dialog: several exercises can be ticked and added at once ("Adicionar 2"), the ones used in
+ * the last two weeks come first, and a new one can be created (it joins the selection).
+ */
 export function ExercisePicker({ visible, onDismiss, onPick }: Props) {
   const all = useExercises();
+  const [now] = useState(() => Date.now());
+  const marks = useExerciseMarks(now);
   const [query, setQuery] = useState('');
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [creating, setCreating] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
 
-  const filtered = useMemo(() => all.filter((e) => matchesExercise(e, query, equipment)), [all, query, equipment]);
+  const sections = useMemo((): { title: string | null; data: PickerRow[] }[] => {
+    const rows: PickerRow[] = all.filter((e) => matchesExercise(e, query, equipment)).map((e) => ({ key: e.id, exercise: e }));
+    if (query.trim() || equipment.length) return [{ title: null, data: rows }];
+    const byId = new Map(all.map((e) => [e.id, e]));
+    const recent = recentExerciseIds(marks, now, 14).flatMap((id) => {
+      const exercise = byId.get(id);
+      return exercise ? [{ key: `recent:${id}`, exercise }] : [];
+    });
+    return recent.length ? [{ title: 'Usados há pouco', data: recent }, { title: 'Todos', data: rows }] : [{ title: null, data: rows }];
+  }, [all, marks, now, query, equipment]);
 
-  const pick = (id: string) => {
-    onPick(id);
+  const close = () => {
     setQuery('');
+    setPicked([]);
     onDismiss();
   };
+  const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   return (
     <Portal>
-      <Dialog visible={visible} onDismiss={onDismiss} style={styles.dialog}>
-        <Dialog.Title>{creating ? 'Novo exercício' : 'Escolher exercício'}</Dialog.Title>
+      <Dialog visible={visible} onDismiss={close} style={styles.dialog}>
+        <Dialog.Title>{creating ? 'Novo exercício' : 'Adicionar exercícios'}</Dialog.Title>
         {creating ? (
           <NewExerciseForm
             initialName={query}
             onCancel={() => setCreating(false)}
             onCreated={(id) => {
               setCreating(false);
-              pick(id);
+              setQuery('');
+              setPicked((p) => [...p, id]);
             }}
           />
         ) : (
@@ -167,24 +189,42 @@ export function ExercisePicker({ visible, onDismiss, onPick }: Props) {
               <EquipmentFilter exercises={all} value={equipment} onChange={setEquipment} />
             </Dialog.Content>
             <Dialog.ScrollArea style={styles.scroll}>
-              <FlatList
-                data={filtered}
-                keyExtractor={(e) => e.id}
+              <SectionList
+                sections={sections}
+                keyExtractor={(row) => row.key}
                 keyboardShouldPersistTaps="handled"
-                renderItem={({ item }) => (
-                  <List.Item
-                    title={item.name}
-                    description={`${item.category} · ${equipmentText(item)}`}
-                    left={(p) => <ExerciseThumb exerciseId={item.id} equipment={item.equipment[0]} style={p.style} />}
-                    onPress={() => pick(item.id)}
-                  />
-                )}
+                stickySectionHeadersEnabled={false}
+                renderSectionHeader={({ section }) => (section.title ? <List.Subheader>{section.title}</List.Subheader> : null)}
+                renderItem={({ item: { exercise } }) => {
+                  const selected = picked.includes(exercise.id);
+                  return (
+                    <List.Item
+                      title={exercise.name}
+                      description={`${exercise.category} · ${equipmentText(exercise)}`}
+                      left={(p) => <ExerciseThumb exerciseId={exercise.id} equipment={exercise.equipment[0]} style={p.style} />}
+                      right={() => <Checkbox status={selected ? 'checked' : 'unchecked'} onPress={() => toggle(exercise.id)} />}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}
+                      onPress={() => toggle(exercise.id)}
+                    />
+                  );
+                }}
                 ListEmptyComponent={<Text style={styles.empty}>Nenhum exercício encontrado</Text>}
               />
             </Dialog.ScrollArea>
             <Dialog.Actions>
               <Button onPress={() => setCreating(true)}>Criar novo</Button>
-              <Button onPress={onDismiss}>Fechar</Button>
+              <View style={styles.spacer} />
+              <Button onPress={close}>Fechar</Button>
+              <Button
+                mode="contained"
+                disabled={picked.length === 0}
+                onPress={() => {
+                  onPick(picked);
+                  close();
+                }}>
+                {picked.length ? `Adicionar ${picked.length}` : 'Adicionar'}
+              </Button>
             </Dialog.Actions>
           </>
         )}
@@ -246,6 +286,7 @@ const styles = StyleSheet.create({
   dialog: { maxHeight: '85%' },
   scroll: { paddingHorizontal: 0, maxHeight: 420 },
   empty: { padding: 24, textAlign: 'center' },
+  spacer: { flex: 1 },
   form: { gap: 12 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   // A horizontal ScrollView next to a flex list gets squeezed to nothing unless it can't shrink.

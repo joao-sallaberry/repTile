@@ -114,21 +114,20 @@ export default function EditWorkoutScreen() {
   const updateItem = ({ block, item }: ItemRef, patch: Partial<WorkoutItemDraft>) =>
     updateBlock(block, { items: draft.blocks[block].items.map((it, i) => (i === item ? { ...it, ...patch } : it)) });
 
-  /** Adds an exercise: to the given block, or to a trailing exercises block (created if needed). */
-  const addExercise = (exerciseId: string) => {
+  /** Adds the exercises picked: to the given block, or to a trailing exercises block (created if needed). */
+  const addExercises = (exerciseIds: string[]) => {
     if (typeof pickerFor === 'number') {
       const b = draft.blocks[pickerFor];
-      updateBlock(pickerFor, { items: [...b.items, emptyItem(exerciseId, b.kind)] });
+      updateBlock(pickerFor, { items: [...b.items, ...exerciseIds.map((id) => emptyItem(id, b.kind))] });
       return;
     }
+    const items = exerciseIds.map((id) => emptyItem(id, 'exercises'));
     const lastIndex = shown.at(-1);
     const last = lastIndex != null ? draft.blocks[lastIndex] : undefined;
     if (lastIndex != null && last?.kind === 'exercises') {
-      updateBlock(lastIndex, { items: [...last.items, emptyItem(exerciseId, 'exercises')] });
+      updateBlock(lastIndex, { items: [...last.items, ...items] });
     } else {
-      update({
-        blocks: [...draft.blocks, { ...emptyBlock('exercises', variant), items: [emptyItem(exerciseId, 'exercises')] }],
-      });
+      update({ blocks: [...draft.blocks, { ...emptyBlock('exercises', variant), items }] });
     }
   };
 
@@ -328,7 +327,7 @@ export default function EditWorkoutScreen() {
           })
         }
       />
-      <ExercisePicker visible={pickerFor != null} onDismiss={() => setPickerFor(null)} onPick={addExercise} />
+      <ExercisePicker visible={pickerFor != null} onDismiss={() => setPickerFor(null)} onPick={addExercises} />
       <LocationPicker
         visible={locationOpen}
         currentId={draft.locationId}

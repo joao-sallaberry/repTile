@@ -184,7 +184,9 @@ export function WodBlockCard({ block, movements }: { block: SessionBlock; moveme
       <ExercisePicker
         visible={pickerOpen}
         onDismiss={() => setPickerOpen(false)}
-        onPick={(exerciseId) => addExerciseToSession(block.sessionId, block.id, exerciseId)}
+        onPick={async (ids) => {
+          for (const exerciseId of ids) await addExerciseToSession(block.sessionId, block.id, exerciseId);
+        }}
       />
       <Portal>
         <Dialog visible={configOpen} onDismiss={() => setConfigOpen(false)}>

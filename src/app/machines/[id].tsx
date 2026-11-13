@@ -203,7 +203,9 @@ export default function MachineDetailScreen() {
       <ExercisePicker
         visible={pickerOpen}
         onDismiss={() => setPickerOpen(false)}
-        onPick={(exerciseId) => linkMachineToExercise(id, exerciseId)}
+        onPick={async (ids) => {
+          for (const exerciseId of ids) await linkMachineToExercise(id, exerciseId);
+        }}
       />
     </ScrollView>
   );
