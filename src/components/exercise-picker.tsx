@@ -46,35 +46,82 @@ export function EquipmentFilter({
   exercises,
   value,
   onChange,
+  label,
   style,
 }: {
   exercises: Pick<Exercise, 'equipment'>[];
   value: Equipment[];
   onChange: (v: Equipment[]) => void;
+  label?: string;
   style?: ViewStyle;
 }) {
   const used = EQUIPMENT.filter((e) => value.includes(e) || exercises.some((x) => x.equipment.includes(e)));
-  if (used.length < 2) return null;
+  return <ChipFilter options={used.map((e) => ({ key: e, label: equipmentLabel(e) }))} value={value} onChange={onChange} label={label} style={style} />;
+}
+
+/** Muscle groups (the exercises' categories), in alphabetical order. */
+export const exerciseCategories = (exercises: Pick<Exercise, 'category'>[]) =>
+  [...new Set(exercises.map((e) => e.category))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+/** Horizontal muscle group filter: several can be picked, none picked = all. */
+export function CategoryFilter({
+  exercises,
+  value,
+  onChange,
+  label,
+  style,
+}: {
+  exercises: Pick<Exercise, 'category'>[];
+  value: string[];
+  onChange: (v: string[]) => void;
+  label?: string;
+  style?: ViewStyle;
+}) {
+  const options = exerciseCategories(exercises).map((c) => ({ key: c, label: c }));
+  return <ChipFilter options={options} value={value} onChange={onChange} label={label} style={style} />;
+}
+
+/** "Todos" plus one multi-select chip per option; hidden when there is no choice to make. */
+function ChipFilter<K extends string>({
+  options,
+  value,
+  onChange,
+  label,
+  style,
+}: {
+  options: { key: K; label: string }[];
+  value: K[];
+  onChange: (v: K[]) => void;
+  label?: string;
+  style?: ViewStyle;
+}) {
+  if (options.length < 2) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={[styles.filter, style]}>
+      {label && (
+        <Text variant="labelSmall" style={styles.filterLabel}>
+          {label}
+        </Text>
+      )}
       <FilterChip selected={value.length === 0} onPress={() => onChange([])}>
         Todos
       </FilterChip>
-      {used.map((e) => (
+      {options.map((o) => (
         <FilterChip
-          key={e}
-          selected={value.includes(e)}
-          onPress={() => onChange(value.includes(e) ? value.filter((v) => v !== e) : [...value, e])}>
-          {equipmentLabel(e)}
+          key={o.key}
+          selected={value.includes(o.key)}
+          onPress={() => onChange(value.includes(o.key) ? value.filter((v) => v !== o.key) : [...value, o.key])}>
+          {o.label}
         </FilterChip>
       ))}
     </ScrollView>
   );
 }
 
-/** Search text + equipment filter. */
-export function matchesExercise(e: Exercise, query: string, equipment: Equipment[]) {
+/** Search text + equipment and muscle group filters (an empty filter matches everything). */
+export function matchesExercise(e: Exercise, query: string, equipment: Equipment[], categories: string[] = []) {
   if (!matchesEquipment(e, equipment)) return false;
+  if (categories.length && !categories.includes(e.category)) return false;
   const q = normalize(query);
   return !q || normalize(`${e.name} ${e.category}`).includes(q);
 }
@@ -204,5 +251,6 @@ const styles = StyleSheet.create({
   // A horizontal ScrollView next to a flex list gets squeezed to nothing unless it can't shrink.
   filterScroll: { flexGrow: 0, flexShrink: 0 },
   filter: { gap: 6, paddingTop: 8, alignItems: 'center' },
+  filterLabel: { width: 52, opacity: 0.7, letterSpacing: 0.6 },
 });
 
