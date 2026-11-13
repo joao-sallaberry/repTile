@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNotNull, isNull, lt, max, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, max, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import {
@@ -382,6 +382,18 @@ export async function setExerciseRest(sessionId: string, position: number, restS
     .update(sessionSets)
     .set({ restSec, ...touched() })
     .where(and(eq(sessionSets.sessionId, sessionId), eq(sessionSets.position, position), isNull(sessionSets.deletedAt)));
+}
+
+/** Same rest between sets for every exercise of the session's exercises blocks (WOD movements have none). */
+export async function setSessionRest(sessionId: string, restSec: number | null) {
+  const blocks = db
+    .select({ id: sessionBlocks.id })
+    .from(sessionBlocks)
+    .where(and(eq(sessionBlocks.sessionId, sessionId), eq(sessionBlocks.kind, 'exercises'), isNull(sessionBlocks.deletedAt)));
+  await db
+    .update(sessionSets)
+    .set({ restSec, ...touched() })
+    .where(and(eq(sessionSets.sessionId, sessionId), inArray(sessionSets.sessionBlockId, blocks), isNull(sessionSets.deletedAt)));
 }
 
 export async function setSessionLocation(sessionId: string, locationId: string | null) {

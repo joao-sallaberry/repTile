@@ -39,6 +39,7 @@ import {
   removeSet,
   reorderSession,
   setExerciseRest,
+  setSessionRest,
   setExerciseEquipment,
   setExerciseMachine,
   setSessionLocation,
@@ -455,7 +456,8 @@ function ExerciseCard({
         visible={restOpen}
         value={restSec}
         onDismiss={() => setRestOpen(false)}
-        onSave={(sec) => setExerciseRest(session.id, position, sec)}
+        allowAll
+        onSave={(sec, all) => (all ? setSessionRest(session.id, sec) : setExerciseRest(session.id, position, sec))}
       />
       <Portal>
         <Dialog visible={mediaOpen} onDismiss={() => setMediaOpen(false)}>

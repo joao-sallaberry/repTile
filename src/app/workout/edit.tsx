@@ -269,6 +269,13 @@ export default function EditWorkoutScreen() {
             onRemove={() => update({ blocks: draft.blocks.filter((_, j) => j !== shown[i]) })}
             onAddItem={() => setPickerFor(shown[i])}
             onPickMachine={(item) => setMachineFor({ block: shown[i], item })}
+            onRestAll={(restSec) =>
+              update({
+                blocks: draft.blocks.map((b) =>
+                  b.locationId === variant && b.kind === 'exercises' ? { ...b, items: b.items.map((it) => ({ ...it, restSec })) } : b,
+                ),
+              })
+            }
           />
         ))}
 
@@ -371,6 +378,7 @@ function BlockEditor({
   onRemove,
   onAddItem,
   onPickMachine,
+  onRestAll,
 }: {
   block: BlockDraft;
   /** Number of blocks in the routine (a lone exercises block has no header). */
@@ -380,6 +388,8 @@ function BlockEditor({
   onRemove: () => void;
   onAddItem: () => void;
   onPickMachine: (item: number) => void;
+  /** Same rest for every exercise of the version being edited. */
+  onRestAll: (restSec: number | null) => void;
 }) {
   const theme = useTheme();
   const machineMap = useMachineMap();
@@ -460,7 +470,7 @@ function BlockEditor({
               </View>
             </TouchableRipple>
           )}
-          <RestPill value={item.restSec} onChange={(restSec) => setItem(i, { restSec })} />
+          <RestPill value={item.restSec} onChange={(restSec, all) => (all ? onRestAll(restSec) : setItem(i, { restSec }))} />
         </View>
         <Card.Content>
           <ItemFields kind={block.kind} exercise={ex} item={item} onChange={(patch) => setItem(i, patch)} />
@@ -688,7 +698,7 @@ function DashedButton({ label, onPress }: { label: string; onPress: () => void }
 }
 
 /** "Descanso 1:30": the rest between sets, edited with `RestPicker`. */
-function RestPill({ value, onChange }: { value: number | null; onChange: (sec: number | null) => void }) {
+function RestPill({ value, onChange }: { value: number | null; onChange: (sec: number | null, all: boolean) => void }) {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
   const text = value ? formatDuration(value) : 'sem';
@@ -707,7 +717,7 @@ function RestPill({ value, onChange }: { value: number | null; onChange: (sec: n
           </Text>
         </View>
       </TouchableRipple>
-      <RestPicker visible={open} value={value} onDismiss={() => setOpen(false)} onSave={onChange} />
+      <RestPicker visible={open} value={value} allowAll onDismiss={() => setOpen(false)} onSave={onChange} />
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button, Dialog, IconButton, Portal, Text } from 'react-native-paper';
+import { Button, Checkbox, Dialog, IconButton, Portal, Text } from 'react-native-paper';
 
 import { FilterChip } from '@/components/filter-chips';
 import { REST_STEP as STEP, stepRest } from '@/features/session/times';
@@ -10,27 +10,34 @@ const PRESETS = [30, 45, 60, 90, 120, 180];
 
 /**
  * Rest between sets: the value in large type with −15s / +15s (hold to repeat),
- * chips with the usual times and "Sem descanso". `onSave` gets null for no rest.
+ * chips with the usual times and "Sem descanso". `onSave` gets null for no rest. With `allowAll` it offers
+ * "Usar em todos os exercícios" and tells `onSave` whether it was ticked.
  */
 export function RestPicker({
   visible,
   value,
+  allowAll = false,
   onDismiss,
   onSave,
 }: {
   visible: boolean;
   value: number | null;
+  allowAll?: boolean;
   onDismiss: () => void;
-  onSave: (sec: number | null) => void;
+  onSave: (sec: number | null, all: boolean) => void;
 }) {
   const [sec, setSec] = useState(value ?? 0);
+  const [all, setAll] = useState(false);
   const [wasVisible, setWasVisible] = useState(visible);
   const repeat = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Start from the current value each time it opens.
   if (visible !== wasVisible) {
     setWasVisible(visible);
-    if (visible) setSec(value ?? 0);
+    if (visible) {
+      setSec(value ?? 0);
+      setAll(false);
+    }
   }
 
   const stopRepeat = () => {
@@ -76,16 +83,26 @@ export function RestPicker({
               Sem descanso
             </FilterChip>
           </View>
+          {allowAll && (
+            <Checkbox.Item
+              label="Usar em todos os exercícios"
+              status={all ? 'checked' : 'unchecked'}
+              onPress={() => setAll((a) => !a)}
+              position="leading"
+              labelStyle={styles.allLabel}
+              style={styles.all}
+            />
+          )}
         </Dialog.Content>
         <Dialog.Actions>
           <Button onPress={onDismiss}>Cancelar</Button>
           <Button
             mode="contained"
             onPress={() => {
-              onSave(sec || null);
+              onSave(sec || null, all);
               onDismiss();
             }}>
-            OK
+            Salvar
           </Button>
         </Dialog.Actions>
       </Dialog>
@@ -98,4 +115,6 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   value: { fontWeight: '700', fontVariant: ['tabular-nums'], minWidth: 120, textAlign: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  all: { paddingHorizontal: 0, paddingVertical: 0 },
+  allLabel: { textAlign: 'left' },
 });
