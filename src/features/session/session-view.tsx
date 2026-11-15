@@ -235,6 +235,7 @@ export function SessionView({ session, onFinish }: Props) {
 
       <ExercisePicker
         visible={pickerFor != null}
+        subtitle="ao treino em andamento"
         onDismiss={() => setPickerFor(null)}
         onPick={async (ids) => {
           // One at a time: each one takes the next position of the session.

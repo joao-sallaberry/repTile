@@ -198,6 +198,7 @@ export function WodBlockCard({ block, movements }: { block: SessionBlock; moveme
 
       <ExercisePicker
         visible={pickerOpen}
+        subtitle={`ao ${describeBlockFormat(block)}`}
         onDismiss={() => setPickerOpen(false)}
         onPick={async (ids) => {
           for (const exerciseId of ids) await addExerciseToSession(block.sessionId, block.id, exerciseId);

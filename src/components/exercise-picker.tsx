@@ -1,12 +1,26 @@
 import { useMemo, useState } from 'react';
 import type { ViewStyle } from 'react-native';
-import { ScrollView, SectionList, StyleSheet, View } from 'react-native';
-import { Button, Checkbox, Dialog, List, Portal, SegmentedButtons, Searchbar, Text, TextInput } from 'react-native-paper';
+import { Modal, ScrollView, SectionList, StyleSheet, View } from 'react-native';
+import {
+  Button,
+  Dialog,
+  Icon,
+  IconButton,
+  SegmentedButtons,
+  Searchbar,
+  Text,
+  TextInput,
+  TouchableRipple,
+  useTheme,
+} from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ExerciseThumb } from '@/components/exercise-media';
 import { FilterChip } from '@/components/filter-chips';
 import { EQUIPMENT, MEASURES, type Equipment, type Exercise, type Measure } from '@/db/schema';
-import { recentExerciseIds } from '@/features/stats/exercise-list';
+import { plural } from '@/features/history/session-card';
+import { relativeDays } from '@/features/home/stats';
+import { recentExerciseIds, type ExerciseMark } from '@/features/stats/exercise-list';
 import { useExerciseMarks } from '@/features/stats/queries';
 import { useExercises } from '@/features/workouts/queries';
 import {
@@ -133,46 +147,191 @@ type Props = {
   onDismiss: () => void;
   /** The exercises picked, in the order they were tapped. */
   onPick: (exerciseIds: string[]) => void;
+  /** Where they go, under the title ("à rotina Push"). */
+  subtitle?: string;
 };
 
 type PickerRow = { key: string; exercise: Exercise };
+type Panel = 'category' | 'equipment' | null;
 
 /**
- * Exercise search dialog: several exercises can be ticked and added at once ("Adicionar 2"), the ones used in
- * the last two weeks come first, and a new one can be created (it joins the selection).
+ * Full-screen exercise picker: search, muscle group and equipment filters (each a button that opens its chips),
+ * the ones used in the last two weeks first, each with its best set and when it was last done. Several can be
+ * ticked; each shows its number in the order they will be added, and the tray at the bottom lists them (✕ takes
+ * one out) above "Adicionar N exercícios". "Novo" creates an exercise, which joins the selection.
  */
-export function ExercisePicker({ visible, onDismiss, onPick }: Props) {
+export function ExercisePicker({ visible, onDismiss, onPick, subtitle }: Props) {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const all = useExercises();
   const [now] = useState(() => Date.now());
   const marks = useExerciseMarks(now);
   const [query, setQuery] = useState('');
   const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [panel, setPanel] = useState<Panel>(null);
   const [creating, setCreating] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
+  const byId = useMemo(() => new Map(all.map((e) => [e.id, e])), [all]);
 
   const sections = useMemo((): { title: string | null; data: PickerRow[] }[] => {
-    const rows: PickerRow[] = all.filter((e) => matchesExercise(e, query, equipment)).map((e) => ({ key: e.id, exercise: e }));
-    if (query.trim() || equipment.length) return [{ title: null, data: rows }];
-    const byId = new Map(all.map((e) => [e.id, e]));
+    const rows: PickerRow[] = all
+      .filter((e) => matchesExercise(e, query, equipment, categories))
+      // `useExercises` orders by group, then name; here it's just A–Z.
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+      .map((e) => ({ key: e.id, exercise: e }));
+    if (query.trim() || equipment.length || categories.length) return [{ title: null, data: rows }];
     const recent = recentExerciseIds(marks, now, 14).flatMap((id) => {
       const exercise = byId.get(id);
       return exercise ? [{ key: `recent:${id}`, exercise }] : [];
     });
-    return recent.length ? [{ title: 'Usados há pouco', data: recent }, { title: 'Todos', data: rows }] : [{ title: null, data: rows }];
-  }, [all, marks, now, query, equipment]);
+    return recent.length
+      ? [
+          { title: 'Usados há pouco', data: recent },
+          { title: 'Todos · A–Z', data: rows },
+        ]
+      : [{ title: null, data: rows }];
+  }, [all, byId, marks, now, query, equipment, categories]);
 
   const close = () => {
     setQuery('');
     setPicked([]);
+    setEquipment([]);
+    setCategories([]);
+    setPanel(null);
+    setCreating(false);
     onDismiss();
   };
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const filterLabel = (values: string[], none: string) => (values.length ? values.join(', ') : none);
 
   return (
-    <Portal>
-      <Dialog visible={visible} onDismiss={close} style={styles.dialog}>
-        <Dialog.Title>{creating ? 'Novo exercício' : 'Adicionar exercícios'}</Dialog.Title>
-        {creating ? (
+    <Modal visible={visible} animationType="slide" onRequestClose={() => (creating ? setCreating(false) : close())} statusBarTranslucent navigationBarTranslucent>
+      <View style={[styles.screen, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <IconButton icon="close" accessibilityLabel="Fechar" onPress={close} />
+          <View style={styles.flex}>
+            <Text variant="titleLarge" numberOfLines={1}>
+              Adicionar exercícios
+            </Text>
+            {subtitle && (
+              <Text variant="bodySmall" numberOfLines={1} style={styles.muted}>
+                {subtitle}
+              </Text>
+            )}
+          </View>
+          <Button icon="plus" compact onPress={() => setCreating(true)}>
+            Novo
+          </Button>
+        </View>
+
+        <View style={styles.top}>
+          <Searchbar placeholder="Buscar por nome ou músculo" value={query} onChangeText={setQuery} />
+          <View style={styles.filterButtons}>
+            <FilterButton
+              label={filterLabel(categories, 'Grupo')}
+              active={categories.length > 0}
+              open={panel === 'category'}
+              onPress={() => setPanel(panel === 'category' ? null : 'category')}
+            />
+            <FilterButton
+              label={filterLabel(equipment.map(equipmentLabel), 'Equipamento')}
+              active={equipment.length > 0}
+              open={panel === 'equipment'}
+              onPress={() => setPanel(panel === 'equipment' ? null : 'equipment')}
+            />
+          </View>
+          {panel && (
+            <View style={styles.chips}>
+              {(panel === 'category'
+                ? exerciseCategories(all).map((c) => ({ key: c, label: c }))
+                : EQUIPMENT.filter((e) => all.some((x) => x.equipment.includes(e))).map((e) => ({ key: e, label: equipmentLabel(e) }))
+              ).map((o) => {
+                const values: string[] = panel === 'category' ? categories : equipment;
+                const selected = values.includes(o.key);
+                const next = selected ? values.filter((v) => v !== o.key) : [...values, o.key];
+                return (
+                  <FilterChip
+                    key={o.key}
+                    compact
+                    selected={selected}
+                    onPress={() => (panel === 'category' ? setCategories(next) : setEquipment(next as Equipment[]))}>
+                    {o.label}
+                  </FilterChip>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        <SectionList
+          style={styles.flex}
+          contentContainerStyle={styles.list}
+          sections={sections}
+          keyExtractor={(row) => row.key}
+          keyboardShouldPersistTaps="handled"
+          stickySectionHeadersEnabled={false}
+          renderSectionHeader={({ section }) =>
+            section.title ? (
+              <Text variant="labelMedium" style={[styles.sectionTitle, styles.muted]}>
+                {section.title.toUpperCase()}
+              </Text>
+            ) : null
+          }
+          renderItem={({ item: { exercise } }) => (
+            <PickerItem
+              exercise={exercise}
+              mark={marks.get(exercise.id)}
+              now={now}
+              order={picked.indexOf(exercise.id) + 1}
+              onPress={() => toggle(exercise.id)}
+            />
+          )}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.muted}>Nenhum exercício encontrado</Text>
+              <Button icon="plus" onPress={() => setCreating(true)}>
+                {query.trim() ? `Criar “${query.trim()}”` : 'Criar exercício'}
+              </Button>
+            </View>
+          }
+        />
+
+        <View
+          style={[
+            styles.tray,
+            { backgroundColor: theme.colors.elevation.level2, borderColor: theme.colors.outlineVariant, paddingBottom: 12 + insets.bottom },
+          ]}>
+          {picked.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trayChips} accessibilityLabel="Selecionados, na ordem em que entram">
+              {picked.map((id, i) => {
+                const name = byId.get(id)?.name ?? 'Exercício';
+                return (
+                  <View key={id} style={[styles.trayChip, { backgroundColor: theme.colors.elevation.level4 }]}>
+                    <OrderBadge n={i + 1} size={22} />
+                    <Text variant="labelLarge">{name}</Text>
+                    <IconButton icon="close" size={14} style={styles.trayRemove} accessibilityLabel={`Tirar ${name} da seleção`} onPress={() => toggle(id)} />
+                  </View>
+                );
+              })}
+            </ScrollView>
+          )}
+          <Button
+            mode="contained"
+            disabled={picked.length === 0}
+            contentStyle={styles.addContent}
+            labelStyle={styles.addLabel}
+            onPress={() => {
+              onPick(picked);
+              close();
+            }}>
+            {picked.length ? `Adicionar ${plural(picked.length, 'exercício', 'exercícios')}` : 'Escolha os exercícios'}
+          </Button>
+        </View>
+
+        {/* Inside the Modal, without Portal: a Portal would render under it. */}
+        <Dialog visible={creating} onDismiss={() => setCreating(false)}>
+          <Dialog.Title>Novo exercício</Dialog.Title>
           <NewExerciseForm
             initialName={query}
             onCancel={() => setCreating(false)}
@@ -182,54 +341,99 @@ export function ExercisePicker({ visible, onDismiss, onPick }: Props) {
               setPicked((p) => [...p, id]);
             }}
           />
-        ) : (
-          <>
-            <Dialog.Content>
-              <Searchbar placeholder="Buscar" value={query} onChangeText={setQuery} autoFocus={false} />
-              <EquipmentFilter exercises={all} value={equipment} onChange={setEquipment} />
-            </Dialog.Content>
-            <Dialog.ScrollArea style={styles.scroll}>
-              <SectionList
-                sections={sections}
-                keyExtractor={(row) => row.key}
-                keyboardShouldPersistTaps="handled"
-                stickySectionHeadersEnabled={false}
-                renderSectionHeader={({ section }) => (section.title ? <List.Subheader>{section.title}</List.Subheader> : null)}
-                renderItem={({ item: { exercise } }) => {
-                  const selected = picked.includes(exercise.id);
-                  return (
-                    <List.Item
-                      title={exercise.name}
-                      description={`${exercise.category} · ${equipmentText(exercise)}`}
-                      left={(p) => <ExerciseThumb exerciseId={exercise.id} equipment={exercise.equipment[0]} style={p.style} />}
-                      right={() => <Checkbox status={selected ? 'checked' : 'unchecked'} onPress={() => toggle(exercise.id)} />}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: selected }}
-                      onPress={() => toggle(exercise.id)}
-                    />
-                  );
-                }}
-                ListEmptyComponent={<Text style={styles.empty}>Nenhum exercício encontrado</Text>}
-              />
-            </Dialog.ScrollArea>
-            <Dialog.Actions>
-              <Button onPress={() => setCreating(true)}>Criar novo</Button>
-              <View style={styles.spacer} />
-              <Button onPress={close}>Fechar</Button>
-              <Button
-                mode="contained"
-                disabled={picked.length === 0}
-                onPress={() => {
-                  onPick(picked);
-                  close();
-                }}>
-                {picked.length ? `Adicionar ${picked.length}` : 'Adicionar'}
-              </Button>
-            </Dialog.Actions>
-          </>
-        )}
-      </Dialog>
-    </Portal>
+        </Dialog>
+      </View>
+    </Modal>
+  );
+}
+
+/** "Grupo" / "Equipamento": shows what is picked and opens its chips below. */
+function FilterButton({ label, active, open, onPress }: { label: string; active: boolean; open: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <TouchableRipple
+      borderless
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      onPress={onPress}
+      style={[
+        styles.filterButton,
+        active
+          ? { backgroundColor: theme.colors.primaryContainer, borderColor: theme.colors.primary }
+          : { borderColor: theme.colors.outline },
+      ]}>
+      <View style={styles.filterButtonInner}>
+        <Text variant="labelLarge" numberOfLines={1} style={[styles.shrink, active && { color: theme.colors.onPrimaryContainer }]}>
+          {label}
+        </Text>
+        <Icon source={open ? 'chevron-up' : 'chevron-down'} size={18} color={active ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceVariant} />
+      </View>
+    </TouchableRipple>
+  );
+}
+
+/** The number an exercise gets in the selection (the order it will be added), or an empty ring. */
+function OrderBadge({ n, size }: { n: number; size: number }) {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        { width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' },
+        n ? { backgroundColor: theme.colors.primary } : { borderWidth: 2, borderColor: theme.colors.outline },
+      ]}>
+      {n > 0 && (
+        <Text variant="labelMedium" style={{ color: theme.colors.onPrimary, fontWeight: '700' }}>
+          {n}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function PickerItem({
+  exercise,
+  mark,
+  now,
+  order,
+  onPress,
+}: {
+  exercise: Exercise;
+  mark: ExerciseMark | undefined;
+  now: number;
+  /** Position in the selection (1-based), 0 when not picked. */
+  order: number;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <TouchableRipple
+      borderless
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: order > 0 }}
+      accessibilityLabel={`${exercise.name}${order ? `, ${order}º da seleção` : ''}`}
+      onPress={onPress}
+      style={[styles.item, order > 0 && { backgroundColor: theme.colors.primaryContainer }]}>
+      <View style={styles.itemInner}>
+        <ExerciseThumb exerciseId={exercise.id} equipment={exercise.equipment[0]} size={48} />
+        <View style={styles.flex}>
+          <Text variant="titleMedium" numberOfLines={1}>
+            {exercise.name}
+          </Text>
+          <Text variant="bodySmall" numberOfLines={1} style={styles.muted}>
+            {`${exercise.category} · ${equipmentText(exercise)}`}
+          </Text>
+        </View>
+        <View style={styles.mark}>
+          <Text variant="labelLarge" style={styles.number}>
+            {mark?.text ?? '—'}
+          </Text>
+          <Text variant="bodySmall" style={styles.muted}>
+            {relativeDays(mark?.lastAt, now)}
+          </Text>
+        </View>
+        <OrderBadge n={order} size={28} />
+      </View>
+    </TouchableRipple>
   );
 }
 
@@ -283,10 +487,28 @@ export function NewExerciseForm({
 }
 
 const styles = StyleSheet.create({
-  dialog: { maxHeight: '85%' },
-  scroll: { paddingHorizontal: 0, maxHeight: 420 },
-  empty: { padding: 24, textAlign: 'center' },
-  spacer: { flex: 1 },
+  screen: { flex: 1 },
+  flex: { flex: 1 },
+  shrink: { flexShrink: 1 },
+  muted: { opacity: 0.7 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 8 },
+  top: { paddingHorizontal: 16, paddingBottom: 4, gap: 10 },
+  filterButtons: { flexDirection: 'row', gap: 8 },
+  filterButton: { borderWidth: 1, borderRadius: 18, maxWidth: '60%' },
+  filterButtonInner: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 34, paddingLeft: 14, paddingRight: 8 },
+  list: { paddingHorizontal: 8, paddingBottom: 16 },
+  sectionTitle: { marginTop: 12, marginBottom: 4, marginHorizontal: 8, letterSpacing: 0.6 },
+  item: { borderRadius: 14 },
+  itemInner: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 8, minHeight: 64 },
+  mark: { alignItems: 'flex-end', gap: 2 },
+  number: { fontVariant: ['tabular-nums'] },
+  empty: { padding: 24, alignItems: 'center', gap: 8 },
+  tray: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingTop: 10, gap: 10 },
+  trayChips: { gap: 8 },
+  trayChip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, borderRadius: 17, paddingLeft: 6 },
+  trayRemove: { margin: 0 },
+  addContent: { height: 50 },
+  addLabel: { fontSize: 16 },
   form: { gap: 12 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   // A horizontal ScrollView next to a flex list gets squeezed to nothing unless it can't shrink.

@@ -334,7 +334,12 @@ export default function EditWorkoutScreen() {
           })
         }
       />
-      <ExercisePicker visible={pickerFor != null} onDismiss={() => setPickerFor(null)} onPick={addExercises} />
+      <ExercisePicker
+        visible={pickerFor != null}
+        subtitle={draft.name.trim() ? `à rotina ${draft.name.trim()}` : undefined}
+        onDismiss={() => setPickerFor(null)}
+        onPick={addExercises}
+      />
       <LocationPicker
         visible={locationOpen}
         currentId={draft.locationId}
