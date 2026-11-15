@@ -478,6 +478,36 @@ export async function addExerciseToSession(sessionId: string, sessionBlockId: st
   });
 }
 
+/**
+ * Appends a copy of a WOD movement (same exercise, equipment, machine and targets) to its block:
+ * "Copiar Nº minuto" of an alternating EMOM. It takes the next position of the session, like a new movement.
+ */
+export async function copyMovement(setId: string) {
+  const set = await db.query.sessionSets.findFirst({ where: eq(sessionSets.id, setId) });
+  if (!set) return;
+  const [{ maxPos }] = await db
+    .select({ maxPos: max(sessionSets.position) })
+    .from(sessionSets)
+    .where(eq(sessionSets.sessionId, set.sessionId));
+  await db.insert(sessionSets).values({
+    ...createdFields(),
+    sessionId: set.sessionId,
+    sessionBlockId: set.sessionBlockId,
+    exerciseId: set.exerciseId,
+    equipment: set.equipment,
+    machineId: set.machineId,
+    position: (maxPos ?? -1) + 1,
+    setIndex: 0,
+    type: set.type,
+    reps: set.reps,
+    weight: set.weight,
+    durationSec: set.durationSec,
+    distanceM: set.distanceM,
+    calories: set.calories,
+    restSec: set.restSec,
+  });
+}
+
 /** Removes an exercise (all its sets) from an in-progress session. */
 export async function removeExercise(sessionId: string, position: number) {
   await db

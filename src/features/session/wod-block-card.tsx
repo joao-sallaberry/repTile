@@ -12,7 +12,7 @@ import { BLOCK_KIND_ICON, describeBlockFormat, type BlockConfig } from '@/featur
 import { describeItem, describeResult, describeRounds } from '@/features/workouts/describe';
 import { useExerciseMap } from '@/features/workouts/queries';
 
-import { addExerciseToSession, removeExercise, removeSessionBlock, resetBlock, updateSessionBlock, updateSet } from './repo';
+import { addExerciseToSession, copyMovement, removeExercise, removeSessionBlock, resetBlock, updateSessionBlock, updateSet } from './repo';
 import { startBlockTimer } from './wod-runner';
 
 /** A WOD block inside the session: its movements (editable until done), "Iniciar" and the result. */
@@ -25,6 +25,9 @@ export function WodBlockCard({ block, movements }: { block: SessionBlock; moveme
   const done = block.finishedAt != null;
   const running = useTimerStore((s) => s.active?.blockId === block.id);
   const result = done ? describeResult(block) : null;
+  /** Alternating EMOM: each movement is one interval, "minuto" when it lasts 60 s (as in the timer). */
+  const unit = block.intervalSec === 60 ? 'minuto' : 'intervalo';
+  const last = movements.at(-1);
 
   const confirmRemove = () =>
     Alert.alert('Remover bloco?', `${describeBlockFormat(block)} sai só deste treino; a rotina não muda.`, [
@@ -101,7 +104,7 @@ export function WodBlockCard({ block, movements }: { block: SessionBlock; moveme
           return (
             <View key={m.id} style={styles.movement}>
               <Text variant="bodyLarge" style={styles.flex} numberOfLines={2}>
-                {block.alternate ? `${i + 1}. ` : ''}
+                {block.alternate ? `${i + 1}º ${unit} · ` : ''}
                 {ex?.name ?? '—'}
                 {done ? <Text style={styles.muted}>{`  ${describeItem(m, block.kind)}`}</Text> : null}
               </Text>
@@ -134,9 +137,21 @@ export function WodBlockCard({ block, movements }: { block: SessionBlock; moveme
           );
         })}
         {!done && (
-          <Button icon="plus" mode="text" compact style={styles.start} onPress={() => setPickerOpen(true)}>
-            Movimento
-          </Button>
+          <View style={styles.buttons}>
+            <Button icon="plus" mode="text" compact onPress={() => setPickerOpen(true)}>
+              Movimento
+            </Button>
+            {block.kind === 'emom' && block.alternate && last && (
+              <Button
+                icon="content-copy"
+                mode="text"
+                compact
+                accessibilityLabel={`Copiar o ${movements.length}º ${unit} para o ${movements.length + 1}º`}
+                onPress={() => copyMovement(last.id)}>
+                {`Copiar ${movements.length}º ${unit}`}
+              </Button>
+            )}
+          </View>
         )}
         {done ? (
           <View style={styles.result}>
@@ -215,6 +230,7 @@ export function WodBlockCard({ block, movements }: { block: SessionBlock; moveme
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   row: { flexDirection: 'row' },
+  buttons: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
   // Card title actions: 40 px buttons so the block format keeps room next to them.
   compactIcon: { margin: 0 },
   titleRight: { marginRight: 4 },

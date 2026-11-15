@@ -396,6 +396,15 @@ function BlockEditor({
   const wod = block.kind !== 'exercises';
   const setItem = (i: number, patch: Partial<WorkoutItemDraft>) =>
     onChange({ items: block.items.map((it, j) => (j === i ? { ...it, ...patch } : it)) });
+  /** Alternating EMOM: each movement is one interval, called "minuto" when it lasts 60 s (as in the timer). */
+  const unit = block.intervalSec === 60 ? 'minuto' : 'intervalo';
+  const last = block.items.at(-1);
+  /** Next interval = a copy of the last one (same exercise, reps, load…), as a new item. */
+  const copyLast = () => {
+    if (!last) return;
+    const { id: _id, ...copy } = last;
+    onChange({ items: [...block.items, { ...copy, sets: [] }] });
+  };
 
   const blockActions = (
     <IconButton icon="delete-outline" size={20} style={styles.compactIcon} accessibilityLabel="Remover bloco" onPress={onRemove} />
@@ -416,7 +425,7 @@ function BlockEditor({
         <View key={item.id ?? `new-${i}`} style={styles.movement}>
           <View style={styles.movementHeader}>
             <Text variant="titleSmall" style={styles.flex}>
-              {block.alternate ? `${i + 1}º intervalo · ` : ''}
+              {block.alternate ? `${i + 1}º ${unit} · ` : ''}
               {ex?.name ?? 'Exercício removido'}
             </Text>
             {actions}
@@ -519,9 +528,20 @@ function BlockEditor({
                 : 'MOVIMENTOS (POR ROUND)'}
         </Text>
         {items}
-        <Button icon="plus" mode="text" style={styles.addInBlock} onPress={onAddItem}>
-          Movimento
-        </Button>
+        <View style={styles.wodButtons}>
+          <Button icon="plus" mode="text" onPress={onAddItem}>
+            Movimento
+          </Button>
+          {block.kind === 'emom' && block.alternate && last && (
+            <Button
+              icon="content-copy"
+              mode="text"
+              accessibilityLabel={`Copiar o ${block.items.length}º ${unit} para o ${block.items.length + 1}º`}
+              onPress={copyLast}>
+              {`Copiar ${block.items.length}º ${unit}`}
+            </Button>
+          )}
+        </View>
       </Card.Content>
     </Card>
   );
@@ -753,7 +773,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   block: { gap: 12 },
   blockHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  addInBlock: { alignSelf: 'flex-start' },
+  wodButtons: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   wodContent: { gap: 12 },
   movement: { gap: 4 },
   movementHeader: { flexDirection: 'row', alignItems: 'center' },
