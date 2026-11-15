@@ -18,8 +18,18 @@ export function moveToDay(times: { start: number; end: number }, day: number) {
 export const REST_STEP = 15;
 const REST_MAX = 15 * 60;
 
+/**
+ * A time after a −/+ press of `delta` seconds: snapped to the `|delta|` grid first, then kept between `min` and `max`
+ * (step 15: 90 → 105, 100 − 15 → 90). `null` (no time yet) starts from `min`.
+ */
+export function stepSeconds(sec: number | null, delta: number, min: number, max: number): number {
+  if (sec == null) return min;
+  const step = Math.abs(delta);
+  const snapped = delta > 0 ? Math.floor(sec / step) * step : Math.ceil(sec / step) * step;
+  return Math.min(max, Math.max(min, snapped + delta));
+}
+
 /** Rest after a −/+ press: snapped to the 15 s grid, between 0 and 15 min (90 → 105, 100 − 15 → 90). */
 export function stepRest(sec: number, delta: number): number {
-  const snapped = delta > 0 ? Math.floor(sec / REST_STEP) * REST_STEP : Math.ceil(sec / REST_STEP) * REST_STEP;
-  return Math.min(REST_MAX, Math.max(0, snapped + delta));
+  return stepSeconds(sec, delta, 0, REST_MAX);
 }

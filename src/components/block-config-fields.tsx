@@ -1,8 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 import { Switch, Text } from 'react-native-paper';
 
-import { DurationField } from '@/components/duration-field';
 import { NumberField } from '@/components/number-field';
+import { TimeStepper } from '@/components/time-stepper';
 import type { BlockConfig } from '@/features/workouts/blocks';
 
 /** Settings of a WOD block: duration (AMRAP), interval/rounds/alternating (EMOM), rounds/cap (For Time), work/rest/rounds (Tabata). */
@@ -18,29 +18,19 @@ export function BlockConfigFields({
       return null;
     case 'amrap':
       return (
-        <DurationField
-          label="Duração (m:ss)"
-          value={config.durationSec}
-          onChange={(durationSec) => onChange({ durationSec })}
-        />
+        <TimeStepper label="Duração" step={60} value={config.durationSec} onChange={(durationSec) => onChange({ durationSec })} />
       );
     case 'emom':
       return (
         <View style={styles.box}>
-          <View style={styles.row}>
-            <DurationField
-              style={styles.flex}
-              label="Intervalo (m:ss)"
-              value={config.intervalSec}
-              onChange={(intervalSec) => onChange({ intervalSec })}
-            />
-            <NumberField
-              style={styles.flex}
-              label="Intervalos"
-              value={config.rounds}
-              onChange={(rounds) => onChange({ rounds })}
-            />
-          </View>
+          <TimeStepper
+            label="Intervalo"
+            step={15}
+            max={10 * 60}
+            value={config.intervalSec}
+            onChange={(intervalSec) => onChange({ intervalSec })}
+          />
+          <NumberField label="Intervalos" value={config.rounds} onChange={(rounds) => onChange({ rounds })} />
           <View style={styles.switchRow}>
             <View style={styles.flex}>
               <Text variant="bodyLarge">Alternar movimentos</Text>
@@ -58,9 +48,10 @@ export function BlockConfigFields({
       return (
         <View style={styles.row}>
           <NumberField style={styles.flex} label="Rounds" value={config.rounds} onChange={(rounds) => onChange({ rounds })} />
-          <DurationField
+          <TimeStepper
             style={styles.flex}
-            label="Time cap (m:ss)"
+            label="Time cap"
+            step={60}
             value={config.timeCapSec}
             onChange={(timeCapSec) => onChange({ timeCapSec })}
           />
@@ -68,20 +59,27 @@ export function BlockConfigFields({
       );
     case 'tabata':
       return (
-        <View style={styles.row}>
-          <DurationField
-            style={styles.flex}
-            label="Trabalho (m:ss)"
-            value={config.workSec}
-            onChange={(workSec) => onChange({ workSec })}
-          />
-          <DurationField
-            style={styles.flex}
-            label="Descanso (m:ss)"
-            value={config.restSec}
-            onChange={(restSec) => onChange({ restSec })}
-          />
-          <NumberField style={styles.num} label="Rounds" value={config.rounds} onChange={(rounds) => onChange({ rounds })} />
+        <View style={styles.box}>
+          <View style={styles.row}>
+            <TimeStepper
+              style={styles.flex}
+              label="Trabalho"
+              step={5}
+              max={5 * 60}
+              value={config.workSec}
+              onChange={(workSec) => onChange({ workSec })}
+            />
+            <TimeStepper
+              style={styles.flex}
+              label="Descanso"
+              step={5}
+              min={0}
+              max={5 * 60}
+              value={config.restSec}
+              onChange={(restSec) => onChange({ restSec })}
+            />
+          </View>
+          <NumberField label="Rounds" value={config.rounds} onChange={(rounds) => onChange({ rounds })} />
         </View>
       );
   }
@@ -89,9 +87,8 @@ export function BlockConfigFields({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  num: { width: 84 },
   box: { gap: 8 },
-  row: { flexDirection: 'row', gap: 8 },
+  row: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   muted: { opacity: 0.7 },
 });
