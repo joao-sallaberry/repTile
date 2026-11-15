@@ -64,7 +64,7 @@ export function SessionView({ session, onFinish }: Props) {
   const [blockMenuOpen, setBlockMenuOpen] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
 
-  const { data: blocks } = useLiveQuery(
+  const { data: blocks, updatedAt: blocksLoaded } = useLiveQuery(
     db
       .select()
       .from(sessionBlocks)
@@ -72,7 +72,7 @@ export function SessionView({ session, onFinish }: Props) {
       .orderBy(asc(sessionBlocks.position)),
     [session.id],
   );
-  const { data: sets } = useLiveQuery(
+  const { data: sets, updatedAt: setsLoaded } = useLiveQuery(
     db
       .select()
       .from(sessionSets)
@@ -96,7 +96,8 @@ export function SessionView({ session, onFinish }: Props) {
   const volume = done
     .filter((s) => countsTowardStats(s.type))
     .reduce((acc, s) => acc + (s.weight ?? 0) * (s.reps ?? 0), 0);
-  const isEmpty = sets.length === 0;
+  // Until both queries answer, the session isn't known to be empty (don't flash the "Treino livre" hint).
+  const isEmpty = !!setsLoaded && !!blocksLoaded && sets.length === 0;
 
   // "Reordenar": each block with its exercises, identified by their position.
   const reorderGroups: ReorderGroup<string, number>[] = blocks.map((b) => ({

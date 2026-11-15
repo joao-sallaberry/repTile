@@ -160,7 +160,13 @@ type Panel = 'category' | 'equipment' | null;
  * ticked; each shows its number in the order they will be added, and the tray at the bottom lists them (✕ takes
  * one out) above "Adicionar N exercícios". "Novo" creates an exercise, which joins the selection.
  */
-export function ExercisePicker({ visible, onDismiss, onPick, subtitle }: Props) {
+export function ExercisePicker(props: Props) {
+  // Mounted only while open: its queries (all exercises, every set ever done for the marks) would otherwise run when
+  // the screen behind it opens, queue up with that screen's own queries, and rerun on every set completed.
+  return props.visible ? <PickerScreen {...props} /> : null;
+}
+
+function PickerScreen({ visible, onDismiss, onPick, subtitle }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const all = useExercises();
