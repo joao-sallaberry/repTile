@@ -13,6 +13,7 @@ import { beginRoutine } from '@/features/session/begin';
 import { describeShape, isWod, workoutIcon } from '@/features/workouts/blocks';
 import { WORKOUT_TEMPLATES } from '@/features/workouts/templates';
 import { useInstallTemplate } from '@/features/workouts/use-install-template';
+import { compareText } from '@/lib/collate';
 import { normalizeSearch } from '@/lib/search';
 import { STRENGTH_TINT } from '@/theme';
 
@@ -38,7 +39,7 @@ function WorkoutsScreen() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
 
-  const ordered = useMemo(() => [...routines].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')), [routines]);
+  const ordered = useMemo(() => [...routines].sort((a, b) => compareText(a.name, b.name)), [routines]);
   const shown = ordered.filter((r) => matches(r, filter, query));
 
   const routineLocations = locations.filter((l) => routines.some((r) => r.locationIds.includes(l.id)));

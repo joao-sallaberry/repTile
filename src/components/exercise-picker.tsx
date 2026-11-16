@@ -31,6 +31,7 @@ import {
   toggleEquipment,
 } from '@/features/workouts/equipment';
 import { createExercise } from '@/features/workouts/repo';
+import { compareText } from '@/lib/collate';
 import { normalizeSearch as normalize } from '@/lib/search';
 
 export const MEASURE_LABEL: Record<Measure, string> = {
@@ -77,7 +78,7 @@ export function EquipmentFilter({
 
 /** Muscle groups (the exercises' categories), in alphabetical order. */
 export const exerciseCategories = (exercises: Pick<Exercise, 'category'>[]) =>
-  [...new Set(exercises.map((e) => e.category))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  [...new Set(exercises.map((e) => e.category))].sort(compareText);
 
 /** Horizontal muscle group filter: several can be picked, none picked = all. */
 export function CategoryFilter({
@@ -184,7 +185,7 @@ function PickerScreen({ visible, onDismiss, onPick, subtitle }: Props) {
     const rows: PickerRow[] = all
       .filter((e) => matchesExercise(e, query, equipment, categories))
       // `useExercises` orders by group, then name; here it's just A–Z.
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+      .sort((a, b) => compareText(a.name, b.name))
       .map((e) => ({ key: e.id, exercise: e }));
     if (query.trim() || equipment.length || categories.length) return [{ title: null, data: rows }];
     const recent = recentExerciseIds(marks, now, 14).flatMap((id) => {
