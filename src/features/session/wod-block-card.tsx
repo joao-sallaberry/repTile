@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { Button, Card, Dialog, IconButton, List, Portal, Text, useTheme } from 'react-native-paper';
 
@@ -11,12 +11,15 @@ import { useTimerStore } from '@/features/timer/store';
 import { BLOCK_KIND_ICON, describeBlockFormat, type BlockConfig } from '@/features/workouts/blocks';
 import { describeItem, describeResult, describeRounds } from '@/features/workouts/describe';
 import { useExerciseMap } from '@/features/workouts/queries';
+import { samePropsByRows } from '@/lib/same-rows';
 
 import { addExerciseToSession, copyMovement, removeExercise, removeSessionBlock, resetBlock, updateSessionBlock, updateSet } from './repo';
 import { startBlockTimer } from './wod-runner';
 
 /** A WOD block inside the session: its movements (editable until done), "Iniciar" and the result. */
-export function WodBlockCard({ block, movements }: { block: SessionBlock; movements: SessionSet[] }) {
+export const WodBlockCard = memo(WodBlockCardView, samePropsByRows);
+
+function WodBlockCardView({ block, movements }: { block: SessionBlock; movements: SessionSet[] }) {
   const theme = useTheme();
   const exerciseMap = useExerciseMap();
   const [pickerOpen, setPickerOpen] = useState(false);

@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Card, Icon, IconButton, Searchbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
+import { freezeWhenBlurred } from '@/components/freeze-when-blurred';
 import { FilterChips } from '@/components/filter-chips';
 import { PrimaryFab } from '@/components/primary-fab';
 import { useRoutines, type RoutineRow } from '@/features/home/queries';
@@ -29,7 +30,7 @@ function matches(r: RoutineRow, filter: Filter, query: string) {
   return !q || normalizeSearch(`${r.name} ${r.exerciseNames.join(' ')}`).includes(q);
 }
 
-export default function WorkoutsScreen() {
+function WorkoutsScreen() {
   const [now, setNow] = useState(Date.now);
   useFocusEffect(useCallback(() => setNow(Date.now()), []));
   const routines = useRoutines();
@@ -224,3 +225,5 @@ const styles = StyleSheet.create({
   template: { width: 148, minHeight: 88, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed' },
   templateText: { gap: 4, padding: 12 },
 });
+
+export default freezeWhenBlurred(WorkoutsScreen);

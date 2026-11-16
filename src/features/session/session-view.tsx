@@ -1,6 +1,6 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Dialog, IconButton, Menu, Portal, Snackbar, Text, TouchableRipple, useTheme } from 'react-native-paper';
 
@@ -26,6 +26,7 @@ import { BLOCK_KIND_ICON, BLOCK_KIND_LABEL, describeBlockFormat } from '@/featur
 import { defaultEquipment, equipmentText, hasStation, stationNoun } from '@/features/workouts/equipment';
 import { useExerciseMap } from '@/features/workouts/queries';
 import { formatDuration, formatWeight } from '@/lib/format';
+import { samePropsByRows } from '@/lib/same-rows';
 
 import { startsRest, useSessionPreferences } from './preferences';
 import { RestTimerBar } from './rest-timer-bar';
@@ -34,6 +35,7 @@ import {
   addExerciseToSession,
   addSet,
   completeSet,
+  countRemainingSets,
   previousSessionSets,
   removeExercise,
   removeSet,
@@ -114,6 +116,7 @@ export function SessionView({ session, onFinish }: Props) {
     ),
   }));
 
+  // Depends only on things that don't change while ticking sets, so the memoized cards keep it.
   const onToggle = async (set: SessionSet) => {
     if (set.completedAt) {
       await uncompleteSet(set.id);
@@ -123,7 +126,7 @@ export function SessionView({ session, onFinish }: Props) {
     const isPR = await completeSet(set);
     if (isPR) setPrMessage(`Novo PR em ${ex?.name ?? 'exercício'}: ${formatWeight(set.weight)} × ${set.reps} 🏆`);
 
-    const remaining = plainSets.filter((s) => !s.completedAt && s.id !== set.id).length;
+    const remaining = await countRemainingSets(session.id);
     if (set.restSec && remaining > 0 && startsRest(set.type, useSessionPreferences.getState())) {
       startTimer({
         sessionId: session.id,
@@ -289,7 +292,10 @@ function prevText(p: PerformedSetRow | null): string {
   return p.reps != null ? `${p.reps} reps` : '—';
 }
 
-function ExerciseCard({
+/** Re-renders only when its own sets change: the live query returns new rows for every set ticked anywhere. */
+const ExerciseCard = memo(ExerciseCardView, samePropsByRows);
+
+function ExerciseCardView({
   exercise,
   sets,
   session,

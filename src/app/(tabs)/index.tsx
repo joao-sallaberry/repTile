@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Text } from 'react-native-paper';
 
+import { freezeWhenBlurred } from '@/components/freeze-when-blurred';
 import { db } from '@/db/client';
 import { sessions } from '@/db/schema';
 import { ActiveSessionCard } from '@/features/home/active-session-card';
@@ -19,7 +20,7 @@ import { WeekCard } from '@/features/home/week-card';
 
 const todayFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
-export default function HomeScreen() {
+function HomeScreen() {
   // "Now" for relative dates and the week; refreshed whenever the tab gets focus.
   const [now, setNow] = useState(Date.now);
   useFocusEffect(useCallback(() => setNow(Date.now()), []));
@@ -90,3 +91,5 @@ const styles = StyleSheet.create({
   muted: { opacity: 0.7 },
   center: { textAlign: 'center' },
 });
+
+export default freezeWhenBlurred(HomeScreen);

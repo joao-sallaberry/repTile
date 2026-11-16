@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { SectionList, StyleSheet, View } from 'react-native';
 import { Appbar, Dialog, List, Portal, Searchbar, Text, useTheme } from 'react-native-paper';
 
+import { freezeWhenBlurred } from '@/components/freeze-when-blurred';
 import { ExerciseThumb } from '@/components/exercise-media';
 import { CategoryFilter, EquipmentFilter, matchesExercise, MEASURE_LABEL, NewExerciseForm } from '@/components/exercise-picker';
 import { PrimaryFab } from '@/components/primary-fab';
@@ -17,7 +18,7 @@ import { useExercises } from '@/features/workouts/queries';
 /** `recent`: a row of "Feitos há pouco", which says when the exercise was last done. */
 type Row = { key: string; exercise: Exercise; recent?: boolean };
 
-export default function ExercisesScreen() {
+function ExercisesScreen() {
   const all = useExercises();
   const [now] = useState(() => Date.now());
   const marks = useExerciseMarks(now);
@@ -143,3 +144,5 @@ const styles = StyleSheet.create({
   number: { fontVariant: ['tabular-nums'] },
   badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 9, overflow: 'hidden' },
 });
+
+export default freezeWhenBlurred(ExercisesScreen);

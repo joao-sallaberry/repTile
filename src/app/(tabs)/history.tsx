@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Card, IconButton, Text, useTheme } from 'react-native-paper';
 
+import { freezeWhenBlurred } from '@/components/freeze-when-blurred';
 import { FilterChips } from '@/components/filter-chips';
 import { addMonths, groupByWeek, monthBounds, monthGrid, monthOf, type DayCell, type Month } from '@/features/history/calendar';
 import { useHistoryOverview, useSessionsBetween, type RecentSession } from '@/features/home/queries';
@@ -32,7 +33,7 @@ function weekSummary(items: RecentSession[]) {
     .join(' · ');
 }
 
-export default function HistoryScreen() {
+function HistoryScreen() {
   const theme = useTheme();
   const [now, setNow] = useState(Date.now);
   useFocusEffect(useCallback(() => setNow(Date.now()), []));
@@ -226,3 +227,5 @@ const styles = StyleSheet.create({
   groupHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 4, marginTop: 4 },
   empty: { alignItems: 'center', padding: 32, gap: 8 },
 });
+
+export default freezeWhenBlurred(HistoryScreen);

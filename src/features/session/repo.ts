@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, max, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, max, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import {
@@ -399,6 +399,24 @@ export async function setSessionRest(sessionId: string, restSec: number | null) 
 
 export async function setSessionLocation(sessionId: string, locationId: string | null) {
   await db.update(sessions).set({ locationId, ...touched() }).where(eq(sessions.id, sessionId));
+}
+
+/** Sets of the session's exercises blocks not completed yet (WOD movements don't count). */
+export async function countRemainingSets(sessionId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(sessionSets)
+    .innerJoin(sessionBlocks, eq(sessionBlocks.id, sessionSets.sessionBlockId))
+    .where(
+      and(
+        eq(sessionSets.sessionId, sessionId),
+        isNull(sessionSets.completedAt),
+        isNull(sessionSets.deletedAt),
+        eq(sessionBlocks.kind, 'exercises'),
+        isNull(sessionBlocks.deletedAt),
+      ),
+    );
+  return row?.n ?? 0;
 }
 
 export async function uncompleteSet(id: string) {
