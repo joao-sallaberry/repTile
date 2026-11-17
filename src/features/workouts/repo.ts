@@ -16,6 +16,7 @@ import { createdFields, touched } from '@/lib/ids';
 
 import { cleanBlockConfig, defaultBlockConfig, type BlockConfig } from './blocks';
 import { defaultEquipment } from './equipment';
+import { defaultAmounts } from './measure';
 
 /** Exercises blocks: the target of one set. */
 export type SetDraft = {
@@ -66,26 +67,27 @@ export type WorkoutDraft = {
 
 export const newSet = (type: SetType = 'normal', from?: Partial<SetDraft>): SetDraft => ({
   type,
-  reps: from?.reps ?? 10,
+  // a copy keeps the unit of the set it copies (a distance set has no reps)
+  reps: from ? (from.reps ?? null) : 10,
   weight: from?.weight ?? 0,
   durationSec: from?.durationSec ?? null,
   distanceM: from?.distanceM ?? null,
   calories: from?.calories ?? null,
 });
 
-export const emptyItem = (exerciseId: string, kind: BlockKind, equipment: Equipment | null = null): WorkoutItemDraft => ({
-  exerciseId,
-  equipment,
-  machineId: null,
-  sets: kind === 'exercises' ? [newSet(), newSet(), newSet()] : [],
-  reps: 10,
-  weight: null,
-  durationSec: null,
-  distanceM: null,
-  calories: null,
-  restSec: kind === 'exercises' ? 90 : null,
-  notes: null,
-});
+export const emptyItem = (exerciseId: string, kind: BlockKind, measure?: Measure): WorkoutItemDraft => {
+  const amounts = defaultAmounts(measure);
+  return {
+    exerciseId,
+    equipment: null,
+    machineId: null,
+    sets: kind === 'exercises' ? [0, 1, 2].map(() => newSet('normal', { ...amounts, weight: 0 })) : [],
+    ...amounts,
+    weight: null,
+    restSec: kind === 'exercises' ? 90 : null,
+    notes: null,
+  };
+};
 
 export const emptyBlock = (kind: BlockKind, locationId: string | null = null): BlockDraft => ({
   ...defaultBlockConfig(kind),

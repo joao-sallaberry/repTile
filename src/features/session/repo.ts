@@ -17,6 +17,7 @@ import { linkMachineToExercise, linkMachineToLocation } from '@/features/places/
 import { isNewPR, isWodPR, type PerformedSet } from '@/features/stats/prs';
 import { cleanBlockConfig, defaultBlockConfig, isWod, type BlockConfig } from '@/features/workouts/blocks';
 import { defaultEquipment, hasStation } from '@/features/workouts/equipment';
+import { defaultAmounts } from '@/features/workouts/measure';
 import {
   defaultEquipmentOf,
   emptyBlock,
@@ -488,7 +489,7 @@ export async function addExerciseToSession(sessionId: string, sessionBlockId: st
     equipment,
     position: (maxPos ?? -1) + 1,
     setIndex: 0,
-    reps: 10,
+    ...defaultAmounts(exercise?.measure),
     weight: wod
       ? null
       : ((await previousSessionSets(exerciseId, equipment, null)).find((p) => countsTowardStats(p.type))?.weight ?? 0),

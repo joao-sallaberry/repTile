@@ -118,10 +118,10 @@ export default function EditWorkoutScreen() {
   const addExercises = (exerciseIds: string[]) => {
     if (typeof pickerFor === 'number') {
       const b = draft.blocks[pickerFor];
-      updateBlock(pickerFor, { items: [...b.items, ...exerciseIds.map((id) => emptyItem(id, b.kind))] });
+      updateBlock(pickerFor, { items: [...b.items, ...exerciseIds.map((id) => emptyItem(id, b.kind, exerciseMap.get(id)?.measure))] });
       return;
     }
-    const items = exerciseIds.map((id) => emptyItem(id, 'exercises'));
+    const items = exerciseIds.map((id) => emptyItem(id, 'exercises', exerciseMap.get(id)?.measure));
     const lastIndex = shown.at(-1);
     const last = lastIndex != null ? draft.blocks[lastIndex] : undefined;
     if (lastIndex != null && last?.kind === 'exercises') {

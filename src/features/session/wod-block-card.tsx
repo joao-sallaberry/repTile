@@ -4,6 +4,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { Button, Card, Dialog, IconButton, List, Portal, Text, useTheme } from 'react-native-paper';
 
 import { BlockConfigFields } from '@/components/block-config-fields';
+import { DurationField } from '@/components/duration-field';
 import { ExercisePicker } from '@/components/exercise-picker';
 import { NumberField } from '@/components/number-field';
 import type { SessionBlock, SessionSet } from '@/db/schema';
@@ -126,6 +127,31 @@ function WodBlockCardView({ block, movements }: { block: SessionBlock; movements
                   style={styles.num}
                   value={m.weight}
                   onChange={(weight) => updateSet(m.id, { weight })}
+                />
+              )}
+              {!done && measure === 'time' && (
+                <DurationField
+                  label="Tempo"
+                  style={styles.num}
+                  value={m.durationSec}
+                  onChange={(durationSec) => updateSet(m.id, { durationSec })}
+                />
+              )}
+              {!done && measure === 'distance' && (
+                <NumberField
+                  label="Metros"
+                  decimal
+                  style={styles.num}
+                  value={m.distanceM}
+                  onChange={(distanceM) => updateSet(m.id, { distanceM })}
+                />
+              )}
+              {!done && measure === 'calories' && (
+                <NumberField
+                  label="Cal"
+                  style={styles.num}
+                  value={m.calories}
+                  onChange={(calories) => updateSet(m.id, { calories })}
                 />
               )}
               {!done && (
