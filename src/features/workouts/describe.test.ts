@@ -19,6 +19,10 @@ test('describeResult', () => {
   expect(describeResult({ ...base, kind: 'amrap', resultRounds: 12, resultReps: 5, rx: false })).toBe('12 rounds + 5 reps · Scaled');
   expect(describeResult({ ...base, kind: 'tabata', resultReps: 40, roundReps: [14, 11, 15] })).toBe('40 reps · pior round 11 · Rx');
   expect(describeResult({ ...base, kind: 'tabata' })).toBeNull();
+  const unfinished = { ...base, kind: 'for_time' as const, resultRounds: 2, resultReps: 7 };
+  expect(describeResult({ ...unfinished, timeCapSec: 900 })).toBe('Cap · 2 rounds + 7 reps · Rx');
+  expect(describeResult({ ...unfinished, timeCapSec: null })).toBe('Não terminou · 2 rounds + 7 reps · Rx');
+  expect(describeResult(unfinished)).toBe('Cap · 2 rounds + 7 reps · Rx');
 });
 
 test('describeRounds', () => {

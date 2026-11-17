@@ -39,16 +39,21 @@ type ResultLike = {
   resultReps: number | null;
   rx: boolean;
   roundReps?: number[] | null;
+  /** For Time: an unfinished result says "Cap" with a time cap, "Não terminou" without one (`null`). */
+  timeCapSec?: number | null;
 };
 
-/** A WOD block's result: "6:42 · Rx", "12 rounds + 5 reps · Scaled", "Cap · 4 rounds + 0 reps · Rx", "112 reps · pior round 11 · Rx". */
+/**
+ * A WOD block's result: "6:42 · Rx", "12 rounds + 5 reps · Scaled", "Cap · 4 rounds + 0 reps · Rx",
+ * "Não terminou · 2 rounds + 7 reps · Rx", "112 reps · pior round 11 · Rx".
+ */
 export function describeResult(s: ResultLike): string | null {
   let text: string | null = null;
   if (s.kind === 'for_time' && s.resultTimeSec != null) text = formatDuration(s.resultTimeSec);
   else if (s.kind === 'amrap' || s.kind === 'for_time') {
     if (s.resultRounds != null || s.resultReps != null) {
       text = `${s.resultRounds ?? 0} rounds + ${s.resultReps ?? 0} reps`;
-      if (s.kind === 'for_time') text = `Cap · ${text}`;
+      if (s.kind === 'for_time') text = `${s.timeCapSec === null ? 'Não terminou' : 'Cap'} · ${text}`;
     }
   } else if (s.kind === 'emom' && s.resultRounds != null) text = `${s.resultRounds} rounds`;
   else if (s.kind === 'tabata' && s.resultReps != null) {

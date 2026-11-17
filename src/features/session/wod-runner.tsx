@@ -3,7 +3,7 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, type ColorValue } from 'react-native';
-import { Button, Card, Divider, IconButton, List, ProgressBar, Switch, Text, useTheme } from 'react-native-paper';
+import { Button, Card, Divider, IconButton, List, ProgressBar, SegmentedButtons, Switch, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DurationField } from '@/components/duration-field';
@@ -99,12 +99,15 @@ export function WodRunner({ block, subtitle, onClose, onSave }: Props) {
   const timer = active && active.blockId === block.id ? active : null;
   const snap = useTimerSnapshot(timer);
   const [finishedTimeSec, setFinishedTimeSec] = useState<number | null>(null);
+  /** For Time stopped with "Não terminei": the result asks for rounds + reps instead of a time. */
+  const [stoppedUnfinished, setStoppedUnfinished] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const movements = useMovements(block.id);
   const format = describeBlockFormat(block) ?? '';
 
-  const end = (timeSec: number | null = null) => {
+  const end = (timeSec: number | null = null, unfinished = false) => {
     setFinishedTimeSec(timeSec);
+    setStoppedUnfinished(unfinished);
     useTimerStore.getState().pause();
     setShowResult(true);
   };
@@ -131,6 +134,7 @@ export function WodRunner({ block, subtitle, onClose, onSave }: Props) {
               block={block}
               initialTimeSec={finishedTimeSec}
               timeCapped={timerDone && block.kind === 'for_time'}
+              unfinished={stoppedUnfinished}
               onCancel={
                 timerDone || !timer
                   ? undefined
@@ -200,7 +204,8 @@ type RunningProps = {
   snap: Snap;
   movements: SessionSet[];
   palette: Palette;
-  onEnd: (timeSec?: number | null) => void;
+  /** `unfinished`: For Time stopped before finishing every round. */
+  onEnd: (timeSec?: number | null, unfinished?: boolean) => void;
 };
 
 function RunningView(props: RunningProps) {
@@ -496,6 +501,9 @@ function ForTimeView({ block, timer, snap, movements, palette, onEnd }: RunningP
             Terminei · parar em {formatDuration(snap.elapsedSec)}
           </Button>
         )}
+        <Button mode="text" textColor={palette.muted} onPress={() => onEnd(null, true)}>
+          Não terminei · registrar rounds e reps
+        </Button>
       </View>
     </View>
   );
@@ -787,12 +795,16 @@ function ResultForm({
   block,
   initialTimeSec,
   timeCapped,
+  unfinished: stoppedUnfinished,
   onCancel,
   onSave,
 }: {
   block: SessionBlock;
   initialTimeSec: number | null;
+  /** For Time whose timer reached the cap. */
   timeCapped: boolean;
+  /** For Time stopped with "Não terminei". */
+  unfinished: boolean;
   onCancel?: () => void;
   onSave: (r: BlockResult) => void;
 }) {
@@ -804,7 +816,12 @@ function ResultForm({
   const filled = roundReps.filter((r): r is number => r != null);
   const tabataTotal = filled.length ? filled.reduce((a, b) => a + b, 0) : null;
   const worst = worstRound(filled);
-  const [timeSec, setTimeSec] = useState<number | null>(timeCapped ? null : initialTimeSec);
+  const [timeSec, setTimeSec] = useState<number | null>(timeCapped ? null : (initialTimeSec ?? block.resultTimeSec));
+  // For Time: "Terminei" asks for the time, "Não terminei" for rounds + extra reps (a saved capped result reopens as such).
+  const [finished, setFinished] = useState(
+    !timeCapped && !stoppedUnfinished && !(block.resultTimeSec == null && block.resultRounds != null && block.finishedAt != null),
+  );
+  const forTimeDone = block.kind === 'for_time' && finished;
   const [rounds, setRounds] = useState<number | null>(
     block.kind === 'emom' ? block.rounds : (block.resultRounds ?? (splitsCount || null)),
   );
@@ -816,9 +833,9 @@ function ResultForm({
     block.kind === 'tabata'
       ? { resultRounds: null, resultReps: tabataTotal, roundReps: roundReps.map((r) => r ?? 0), rx }
       : {
-          resultTimeSec: block.kind === 'for_time' && !timeCapped ? timeSec : null,
-          resultRounds: rounds,
-          resultReps: block.kind === 'emom' ? null : reps,
+          resultTimeSec: forTimeDone ? timeSec : null,
+          resultRounds: forTimeDone ? null : rounds,
+          resultReps: block.kind === 'emom' || forTimeDone ? null : reps,
           rx,
         };
   const save = () => onSave(result);
@@ -845,10 +862,18 @@ function ResultForm({
     <Card mode="contained">
       <Card.Title title={timeCapped ? 'Time cap! Registre até onde chegou' : 'Resultado'} />
       <Card.Content style={styles.form}>
-        {block.kind === 'for_time' && !timeCapped && (
-          <DurationField label="Tempo final (m:ss)" value={timeSec} onChange={setTimeSec} />
+        {block.kind === 'for_time' && (
+          <SegmentedButtons
+            value={finished ? 'done' : 'unfinished'}
+            onValueChange={(v) => setFinished(v === 'done')}
+            buttons={[
+              { value: 'done', label: 'Terminei', icon: 'flag-checkered' },
+              { value: 'unfinished', label: 'Não terminei', icon: 'timer-sand-complete' },
+            ]}
+          />
         )}
-        {(block.kind === 'amrap' || timeCapped) && (
+        {forTimeDone && <DurationField label="Tempo final (m:ss)" value={timeSec} onChange={setTimeSec} />}
+        {(block.kind === 'amrap' || (block.kind === 'for_time' && !finished)) && (
           <View style={styles.row}>
             <NumberField style={styles.flex} label="Rounds" value={rounds} onChange={setRounds} />
             <NumberField style={styles.flex} label="Reps extras" value={reps} onChange={setReps} />
