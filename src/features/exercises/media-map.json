@@ -39,6 +39,7 @@
   "seed-push-press": {"barbell": "push-press"},
   "seed-push-jerk": {"barbell": "push-jerk"},
   "seed-thruster": {"barbell": "thruster"},
+  "seed-single-arm-thruster": {"dumbbell": "one-arm-dumbbell-push-press", "kettlebell": "one-arm-kettlebell-push-press"},
   "seed-overhead-squat": {"barbell": "overhead-squat"},
   "seed-kettlebell-swing": {"kettlebell": "kettlebell-swing"},
   "seed-wall-ball": {"other": "wall-ball"},

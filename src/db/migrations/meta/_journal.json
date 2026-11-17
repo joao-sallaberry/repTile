@@ -99,6 +99,13 @@
       "when": 1794282572645,
       "tag": "0013_session_health",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1794883768444,
+      "tag": "0014_thruster_equipment",
+      "breakpoints": true
     }
   ]
 }
