@@ -3,7 +3,7 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, Chip, Dialog, Divider, Icon, IconButton, Menu, Portal, Text, TouchableRipple, useTheme } from 'react-native-paper';
+import { Button, Card, Chip, Dialog, Divider, Icon, IconButton, Menu, Portal, Text, TextInput, TouchableRipple, useTheme } from 'react-native-paper';
 
 import { ExerciseThumb } from '@/components/exercise-media';
 import { SetBadge } from '@/components/set-badge';
@@ -18,7 +18,7 @@ import { useRoutineSessions } from '@/features/home/queries';
 import { formatMinutes, formatVolume, summarizeSets } from '@/features/home/stats';
 import { useLocation, useMachineMap } from '@/features/places/queries';
 import { beginRoutine } from '@/features/session/begin';
-import { deleteSession, setSessionTimes } from '@/features/session/repo';
+import { deleteSession, editSessionDetails } from '@/features/session/repo';
 import { countsTowardStats, setLabels } from '@/features/session/sets';
 import { describeSet, loadSessionRecords, type SessionRecord } from '@/features/session/summary';
 import { moveToDay, normalizeTimes } from '@/features/session/times';
@@ -54,7 +54,8 @@ export default function SessionDetailScreen() {
   const exerciseMap = useExerciseMap();
   const machineMap = useMachineMap();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [times, setTimes] = useState<{ start: number; end: number } | null>(null);
+  /** The ⋮ › Editar dialog's draft: name, date and times; null while closed. */
+  const [edit, setEdit] = useState<{ name: string; start: number; end: number } | null>(null);
   const [records, setRecords] = useState<SessionRecord[]>([]);
   const [healthOpen, setHealthOpen] = useState(false);
 
@@ -145,10 +146,10 @@ export default function SessionDetailScreen() {
               anchor={<IconButton icon="dots-vertical" accessibilityLabel="Mais opções" onPress={() => setMenuOpen(true)} />}>
               <Menu.Item
                 leadingIcon="clock-edit-outline"
-                title="Editar data e horários"
+                title="Editar nome, data e horários"
                 onPress={() => {
                   setMenuOpen(false);
-                  setTimes(normalizeTimes(session.startedAt, end));
+                  setEdit({ name: session.name, ...normalizeTimes(session.startedAt, end) });
                 }}
               />
               <Menu.Item
@@ -346,24 +347,30 @@ export default function SessionDetailScreen() {
 
       <HealthLinkDialog session={session} health={health} visible={healthOpen} onDismiss={() => setHealthOpen(false)} />
       <Portal>
-        <Dialog visible={times != null} onDismiss={() => setTimes(null)}>
-          <Dialog.Title>Editar data e horários</Dialog.Title>
-          {times && (
-            <Dialog.Content>
-              <DateField label="Data" value={times.start} onChange={(day) => setTimes(moveToDay(times, day))} />
+        <Dialog visible={edit != null} onDismiss={() => setEdit(null)}>
+          <Dialog.Title>Editar treino</Dialog.Title>
+          {edit && (
+            <Dialog.Content style={styles.editForm}>
+              <TextInput mode="outlined" label="Nome do treino" value={edit.name} onChangeText={(name) => setEdit({ ...edit, name })} />
+              <DateField label="Data" value={edit.start} onChange={(day) => setEdit({ ...edit, ...moveToDay(edit, day) })} />
               <View style={styles.times}>
-                <TimeField label="Início" value={times.start} onChange={(start) => setTimes(normalizeTimes(start, times.end))} />
-                <TimeField label="Término" value={times.end} onChange={(e) => setTimes(normalizeTimes(times.start, e))} />
+                <TimeField
+                  label="Início"
+                  value={edit.start}
+                  onChange={(start) => setEdit({ ...edit, ...normalizeTimes(start, edit.end) })}
+                />
+                <TimeField label="Término" value={edit.end} onChange={(e) => setEdit({ ...edit, ...normalizeTimes(edit.start, e) })} />
               </View>
             </Dialog.Content>
           )}
           <Dialog.Actions>
-            <Button onPress={() => setTimes(null)}>Cancelar</Button>
+            <Button onPress={() => setEdit(null)}>Cancelar</Button>
             <Button
               mode="contained"
+              disabled={!edit?.name.trim()}
               onPress={async () => {
-                if (times) await setSessionTimes(session.id, times.start, times.end);
-                setTimes(null);
+                if (edit) await editSessionDetails(session.id, { name: edit.name.trim(), startedAt: edit.start, finishedAt: edit.end });
+                setEdit(null);
               }}>
               Salvar
             </Button>
@@ -466,4 +473,5 @@ const styles = StyleSheet.create({
   movementRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
   again: { height: 52 },
   times: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  editForm: { gap: 8 },
 });

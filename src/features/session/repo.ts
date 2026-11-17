@@ -665,8 +665,9 @@ export async function finishSession(id: string, { finishedAt = Date.now(), ...re
 }
 
 /** Changes when a finished session started and ended (Histórico › Editar data e horários). */
-export async function setSessionTimes(id: string, startedAt: number, finishedAt: number) {
-  await db.update(sessions).set({ startedAt, finishedAt, ...touched() }).where(eq(sessions.id, id));
+/** Edits a finished session: its name, date and times (⋮ › Editar nome, data e horários in history). */
+export async function editSessionDetails(id: string, { name, startedAt, finishedAt }: { name: string; startedAt: number; finishedAt: number }) {
+  await db.update(sessions).set({ name, startedAt, finishedAt, ...touched() }).where(eq(sessions.id, id));
 }
 
 export async function deleteSession(id: string) {
