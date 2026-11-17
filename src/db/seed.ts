@@ -77,6 +77,7 @@ const SEED: SeedExercise[] = [
   ['reverse-fly', 'Crucifixo inverso', 'Ombros', 'weight_reps', ['dumbbell', 'machine', 'cable']],
   ['upright-row', 'Remada alta', 'Ombros', 'weight_reps', ['barbell', 'dumbbell', 'cable']],
   ['band-pull-apart', 'Abertura com elástico', 'Ombros', 'reps', 'band'],
+  ['landmine-press', 'Landmine press', 'Ombros', 'weight_reps', ['barbell', 'cable']],
   // Arms
   ['barbell-curl', 'Rosca direta', 'Braços', 'weight_reps', ['barbell', 'dumbbell', 'cable']],
   ['hammer-curl', 'Rosca martelo', 'Braços', 'weight_reps', ['dumbbell', 'cable']],
