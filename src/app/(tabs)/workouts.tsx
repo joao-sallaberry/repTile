@@ -9,10 +9,9 @@ import { PrimaryFab } from '@/components/primary-fab';
 import { useRoutines, type RoutineRow } from '@/features/home/queries';
 import { relativeDays } from '@/features/home/stats';
 import { useLocations } from '@/features/places/queries';
-import { beginRoutine } from '@/features/session/begin';
+import { beginReadyWorkout, beginRoutine } from '@/features/session/begin';
 import { describeShape, isWod, workoutIcon } from '@/features/workouts/blocks';
-import { WORKOUT_TEMPLATES } from '@/features/workouts/templates';
-import { useInstallTemplate } from '@/features/workouts/use-install-template';
+import { READY_WORKOUTS } from '@/features/workouts/ready-workouts';
 import { compareText } from '@/lib/collate';
 import { normalizeSearch } from '@/lib/search';
 import { STRENGTH_TINT } from '@/theme';
@@ -107,12 +106,12 @@ function WorkoutsScreen() {
             <View style={styles.empty}>
               <Text variant="titleMedium">Nenhum treino ainda</Text>
               <Text variant="bodyMedium" style={styles.center}>
-                Toque em “Nova rotina” ou comece de um modelo.
+                Toque em “Nova rotina” ou faça um treino pronto.
               </Text>
             </View>
           )
         }
-        ListFooterComponent={<Templates />}
+        ListFooterComponent={<ReadyWorkouts />}
       />
       <PrimaryFab icon="plus" label="Nova rotina" onPress={() => router.push('/workout/edit')} />
     </View>
@@ -170,32 +169,30 @@ function RoutineCard({ routine: r, now, location }: { routine: RoutineRow; now: 
   );
 }
 
-/** "Começar de um modelo": the ready-made templates also offered on first use. */
-function Templates() {
+/** "Treinos prontos": ready-made workouts run without becoming a routine (ADR 0023). */
+function ReadyWorkouts() {
   const theme = useTheme();
-  const { installing, apply } = useInstallTemplate();
   return (
-    <View style={styles.templates}>
-      <View style={styles.templatesHeader}>
-        <Text variant="titleMedium">Começar de um modelo</Text>
+    <View style={styles.ready}>
+      <View style={styles.readyHeader}>
+        <Text variant="titleMedium">Treinos prontos</Text>
         <Text variant="bodySmall" style={styles.muted}>
-          Vira uma rotina sua, que você pode editar
+          Comece na hora. No fim, você escolhe se salva como rotina
         </Text>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.templateRow}>
-        {WORKOUT_TEMPLATES.map((t) => (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.readyRow}>
+        {READY_WORKOUTS.map((w) => (
           <TouchableRipple
-            key={t.key}
+            key={w.key}
             borderless
-            disabled={installing != null}
-            onPress={() => apply(t)}
+            onPress={() => void beginReadyWorkout(w)}
             accessibilityRole="button"
-            accessibilityLabel={`Usar o modelo ${t.name}`}
-            style={[styles.template, { borderColor: theme.colors.outlineVariant }]}>
-            <View style={styles.templateText}>
-              <Text variant="titleSmall">{t.name}</Text>
+            accessibilityLabel={`Começar o treino pronto ${w.name}`}
+            style={[styles.readyCard, { borderColor: theme.colors.outlineVariant }]}>
+            <View style={styles.readyText}>
+              <Text variant="titleSmall">{w.name}</Text>
               <Text variant="bodySmall" style={styles.muted}>
-                {installing === t.key ? 'Criando…' : t.subtitle}
+                {w.subtitle}
               </Text>
             </View>
           </TouchableRipple>
@@ -220,11 +217,11 @@ const styles = StyleSheet.create({
   place: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   center: { textAlign: 'center' },
   empty: { alignItems: 'center', padding: 32, gap: 8 },
-  templates: { gap: 8, marginTop: 24 },
-  templatesHeader: { gap: 2, paddingHorizontal: 4 },
-  templateRow: { gap: 8 },
-  template: { width: 148, minHeight: 88, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed' },
-  templateText: { gap: 4, padding: 12 },
+  ready: { gap: 8, marginTop: 24 },
+  readyHeader: { gap: 2, paddingHorizontal: 4 },
+  readyRow: { gap: 8 },
+  readyCard: { width: 148, minHeight: 88, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed' },
+  readyText: { gap: 4, padding: 12 },
 });
 
 export default freezeWhenBlurred(WorkoutsScreen);

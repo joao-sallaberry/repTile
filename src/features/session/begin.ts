@@ -2,9 +2,10 @@ import { router } from 'expo-router';
 import { Alert } from 'react-native';
 
 import { useCurrentLocation } from '@/features/places/current';
+import type { ReadyWorkout } from '@/features/workouts/ready-workouts';
 import type { VariantKey } from '@/features/workouts/variants';
 
-import { getActiveSession, startEmptySession, startSession } from './repo';
+import { getActiveSession, startEmptySession, startReadyWorkout, startSession } from './repo';
 
 /** Opens a new session, unless one is already in progress (only one at a time). */
 async function beginSession(create: () => Promise<string>) {
@@ -25,3 +26,7 @@ export const beginRoutine = (workoutId: string, variant?: VariantKey) =>
   beginSession(() => startSession(workoutId, useCurrentLocation.getState().id, variant));
 
 export const beginFreeWorkout = () => beginSession(() => startEmptySession(useCurrentLocation.getState().id));
+
+/** Runs a ready-made workout without creating a routine (ADR 0023). */
+export const beginReadyWorkout = (ready: ReadyWorkout) =>
+  beginSession(() => startReadyWorkout(ready, useCurrentLocation.getState().id));

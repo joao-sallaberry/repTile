@@ -40,3 +40,4 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0020 | [Routines have one version per location](0020-location-variants.md) | Accepted | 2026-11-05 |
 | 0021 | [Link sessions to Google Health workouts through Health Connect](0021-health-connect-link.md) | Accepted | 2026-11-10 |
 | 0022 | [Timer beeps mix with other audio instead of ducking it](0022-beeps-mix-with-other-audio.md) | Accepted | 2026-11-12 |
+| 0023 | [Ready-made workouts run without becoming a routine](0023-ready-workouts-run-without-routine.md) | Accepted | 2026-11-18 |

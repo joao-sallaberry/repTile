@@ -4,15 +4,13 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Card, List, Text, useTheme } from 'react-native-paper';
 
 import { useCurrentLocation } from '@/features/places/current';
-import { beginFreeWorkout } from '@/features/session/begin';
-import { WORKOUT_TEMPLATES } from '@/features/workouts/templates';
-import { useInstallTemplate } from '@/features/workouts/use-install-template';
+import { beginFreeWorkout, beginReadyWorkout } from '@/features/session/begin';
+import { isStrength, READY_WORKOUTS } from '@/features/workouts/ready-workouts';
 
 /** Home with no routines and no history yet. */
 export function FirstUse() {
   const theme = useTheme();
   const hasLocation = useCurrentLocation((s) => !!s.id);
-  const { installing, apply: applyTemplate } = useInstallTemplate();
 
   return (
     <View style={styles.section}>
@@ -34,23 +32,20 @@ export function FirstUse() {
       </Button>
 
       <Text variant="labelMedium" style={[styles.muted, styles.caps]}>
-        OU COMECE DE UM MODELO
+        OU FAÇA UM TREINO PRONTO
       </Text>
       <View style={styles.grid}>
-        {WORKOUT_TEMPLATES.map((t) => (
+        {READY_WORKOUTS.map((w) => (
           <Card
-            key={t.key}
+            key={w.key}
             mode="contained"
-            style={styles.template}
-            disabled={installing != null}
-            onPress={() => applyTemplate(t)}
-            accessibilityLabel={`Usar o modelo ${t.name}`}>
-            <Card.Content style={styles.templateContent}>
-              <Text variant="titleSmall">{t.name}</Text>
-              <Text
-                variant="bodySmall"
-                style={t.routines[0].blocks.some((b) => b.kind === 'exercises') ? styles.muted : { color: theme.colors.secondary }}>
-                {installing === t.key ? 'Criando…' : t.subtitle}
+            style={styles.ready}
+            onPress={() => void beginReadyWorkout(w)}
+            accessibilityLabel={`Começar o treino pronto ${w.name}`}>
+            <Card.Content style={styles.readyContent}>
+              <Text variant="titleSmall">{w.name}</Text>
+              <Text variant="bodySmall" style={isStrength(w) ? styles.muted : { color: theme.colors.secondary }}>
+                {w.subtitle}
               </Text>
             </Card.Content>
           </Card>
@@ -80,6 +75,6 @@ const styles = StyleSheet.create({
   caps: { letterSpacing: 0.6, marginTop: 8, marginLeft: 4 },
   bigBtn: { height: 52 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  template: { flexBasis: '48%', flexGrow: 1 },
-  templateContent: { gap: 2 },
+  ready: { flexBasis: '48%', flexGrow: 1 },
+  readyContent: { gap: 2 },
 });

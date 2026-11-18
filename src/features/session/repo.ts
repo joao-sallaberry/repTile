@@ -27,6 +27,7 @@ import {
   type BlockDraft,
   type WorkoutItemDraft,
 } from '@/features/workouts/repo';
+import type { ReadyWorkout } from '@/features/workouts/ready-workouts';
 import { blocksOf, pickVariant, variantKeys, variantLocation, type VariantKey } from '@/features/workouts/variants';
 import { createdFields, touched } from '@/lib/ids';
 
@@ -128,7 +129,24 @@ export async function startSession(
     variant === undefined
       ? pickVariant(variantKeys(routine.blocks), routine.locationId, currentLocationId)
       : { variant, locationId: variantLocation(variant, routine.locationId) ?? currentLocationId };
-  const w = { ...routine, blocks: blocksOf(routine.blocks, picked.variant) };
+  return createSession({
+    workoutId,
+    name: routine.name,
+    locationId: picked.locationId,
+    blocks: blocksOf(routine.blocks, picked.variant),
+  });
+}
+
+/**
+ * Starts a ready-made workout (`ready-workouts.ts`) as a session with no
+ * routine: it only becomes one if saved when finishing (ADR 0023).
+ */
+export async function startReadyWorkout(ready: ReadyWorkout, locationId: string | null = null): Promise<string> {
+  return createSession({ workoutId: null, name: ready.name, locationId, blocks: ready.blocks });
+}
+
+/** Creates a session from blocks, pre-filling each set (routine target, else last time's). */
+async function createSession(w: { workoutId: string | null; name: string; locationId: string | null; blocks: BlockDraft[] }) {
   const defaults = await defaultEquipmentOf(w.blocks.flatMap((b) => b.items.map((i) => i.exerciseId)));
   const equipmentOf = (item: WorkoutItemDraft) => item.equipment ?? defaults.get(item.exerciseId) ?? 'none';
 
@@ -147,9 +165,9 @@ export async function startSession(
     const session = createdFields();
     await tx.insert(sessions).values({
       ...session,
-      workoutId,
+      workoutId: w.workoutId,
       name: w.name,
-      locationId: picked.locationId,
+      locationId: w.locationId,
       startedAt: Date.now(),
     });
 
