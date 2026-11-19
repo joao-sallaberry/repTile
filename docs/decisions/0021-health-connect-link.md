@@ -1,6 +1,6 @@
 # 0021. Link sessions to Google Health workouts through Health Connect
 
-- **Status:** Accepted
+- **Status:** Accepted (automatic match rule superseded by 0024)
 - **Date:** 2026-11-10
 
 ## Context

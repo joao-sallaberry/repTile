@@ -8,15 +8,15 @@ export type HealthExercise = {
   source: string | null;
 };
 
-/** Minimum overlap, as a share of the shorter of the two, for an automatic match. */
+/** An automatic match must cover more than this share of the session (the "N% do treino" of the picker). */
 const MIN_OVERLAP = 0.5;
 
 const overlap = (aStart: number, aEnd: number, bStart: number, bEnd: number) =>
   Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
 
 /**
- * The exercise record that best matches a session: the largest time overlap, covering at least half of the
- * shorter of the two. `undefined` when none does.
+ * The exercise record that best matches a session: the largest time overlap, covering more than half of the
+ * session. `undefined` when none does.
  */
 export function bestMatch<T extends HealthExercise>(
   session: { start: number; end: number },
@@ -26,8 +26,8 @@ export function bestMatch<T extends HealthExercise>(
   let bestOverlap = 0;
   for (const c of candidates) {
     const o = overlap(session.start, session.end, c.start, c.end);
-    const shorter = Math.min(session.end - session.start, c.end - c.start);
-    if (shorter <= 0 || o / shorter < MIN_OVERLAP) continue;
+    const length = session.end - session.start;
+    if (length <= 0 || o / length <= MIN_OVERLAP) continue;
     if (o > bestOverlap) {
       best = c;
       bestOverlap = o;

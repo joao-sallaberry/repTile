@@ -20,21 +20,27 @@ describe('bestMatch', () => {
     expect(bestMatch(session, [a, b])?.id).toBe('b');
   });
 
-  it('accepts a short record fully inside the session', () => {
-    expect(bestMatch(session, [ex('a', 20, 35)])?.id).toBe('a');
+  it('accepts a record covering more than half of the session', () => {
+    expect(bestMatch(session, [ex('a', 20, 55)])?.id).toBe('a');
+  });
+
+  it('rejects a short record inside the session covering half of it or less', () => {
+    expect(bestMatch(session, [ex('a', 20, 35)])).toBeUndefined();
+    expect(bestMatch(session, [ex('a', 0, 30)])).toBeUndefined();
   });
 
   it('accepts a long record covering the whole session', () => {
     expect(bestMatch(session, [ex('a', -60, 120)])?.id).toBe('a');
   });
 
-  it('rejects records overlapping less than half of the shorter one', () => {
+  it('rejects records overlapping half of the session or less', () => {
     expect(bestMatch(session, [ex('a', 50, 90)])).toBeUndefined();
     expect(bestMatch(session, [ex('a', 70, 90)])).toBeUndefined();
   });
 
   it('ignores empty records', () => {
     expect(bestMatch(session, [ex('a', 10, 10)])).toBeUndefined();
+    expect(bestMatch({ start: min(0), end: min(0) }, [ex('a', -10, 10)])).toBeUndefined();
   });
 });
 
