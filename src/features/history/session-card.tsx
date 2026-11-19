@@ -17,7 +17,7 @@ export const durationSec = (s: { startedAt: number; finishedAt: number | null })
 
 /**
  * One finished session: weekday and day, name, duration · volume · sets (or the WOD), place, its Google Health
- * heart rate and calories when linked, and its result or PR count.
+ * heart rate and calories when linked, and its result or PR count. A session imported from Google Health says so.
  */
 export function SessionCard({ session: s }: { session: RecentSession }) {
   const theme = useTheme();
@@ -26,8 +26,11 @@ export function SessionCard({ session: s }: { session: RecentSession }) {
   const duration = s.finishedAt ? formatMinutes(durationSec(s)) : null;
   const wod = s.wods[0];
   const result = !s.volume && wod?.finishedAt ? describeResult({ ...wod, rx: true })?.replace(/ · Rx$/, '') : null;
+  // Imported from Google Health (ADR 0025): only the watch data, no sets or WODs.
+  const imported = s.origin === 'health';
   const meta = [
     duration,
+    ...(imported ? ['Google Health'] : []),
     ...(s.volume ? [formatVolume(s.volume), plural(s.sets, 'série', 'séries')] : wod ? [describeBlockFormat(wod)] : []),
   ]
     .filter(Boolean)
@@ -57,14 +60,14 @@ export function SessionCard({ session: s }: { session: RecentSession }) {
               {place}
             </Text>
           )}
-          {s.health && (
+          {s.health && (!imported || s.health.avgHr || s.health.calories) ? (
             <View style={styles.health} accessibilityLabel={`Google Health: ${healthLine(s.health)}`}>
               <Icon source="heart-pulse" size={14} color={theme.colors.error} />
               <Text variant="bodySmall" style={{ color: theme.colors.error }} numberOfLines={1}>
                 {healthLine(s.health)}
               </Text>
             </View>
-          )}
+          ) : null}
         </View>
         {result ? (
           <View style={styles.result}>

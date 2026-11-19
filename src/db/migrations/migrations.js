@@ -16,6 +16,7 @@ import m0011 from './0011_lunge_equipment.sql';
 import m0012 from './0012_location_variants.sql';
 import m0013 from './0013_session_health.sql';
 import m0014 from './0014_thruster_equipment.sql';
+import m0015 from './0015_session_origin.sql';
 
   export default {
     journal,
@@ -34,7 +35,8 @@ m0010,
 m0011,
 m0012,
 m0013,
-m0014
+m0014,
+m0015
     }
   }
   

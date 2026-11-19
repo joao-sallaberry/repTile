@@ -11,6 +11,7 @@ import { PaperProvider, Text } from 'react-native-paper';
 import { db } from '@/db/client';
 import migrations from '@/db/migrations/migrations';
 import { seedExercises } from '@/db/seed';
+import { useHealthImport } from '@/features/health/use-health-import';
 import { useTimerCuePlayer } from '@/features/timer/cue-player';
 import { navTheme, theme } from '@/theme';
 
@@ -30,6 +31,7 @@ export default function RootLayout() {
   // Android draws edge-to-edge: keep stack screens' content (footers, FABs) above the system navigation bar.
   const { bottom } = useSafeAreaInsets();
   useTimerCuePlayer();
+  useHealthImport(ready);
 
   useEffect(() => {
     if (ready || error) SplashScreen.hideAsync();

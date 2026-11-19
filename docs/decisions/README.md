@@ -42,3 +42,4 @@ ADRs are not edited after they're accepted, except to fix typos or change the st
 | 0022 | [Timer beeps mix with other audio instead of ducking it](0022-beeps-mix-with-other-audio.md) | Accepted | 2026-11-12 |
 | 0023 | [Ready-made workouts run without becoming a routine](0023-ready-workouts-run-without-routine.md) | Accepted | 2026-11-18 |
 | 0024 | [Google Health records match a session only above 50% of it](0024-health-match-share-of-session.md) | Accepted | 2026-11-18 |
+| 0025 | [Import picked Google Health activities as history entries](0025-import-health-activities.md) | Accepted | 2026-11-18 |

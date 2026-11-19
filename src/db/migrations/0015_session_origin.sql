@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `origin` text DEFAULT 'app' NOT NULL;

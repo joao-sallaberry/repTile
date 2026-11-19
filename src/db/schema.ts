@@ -175,6 +175,9 @@ export const workoutItemSets = sqliteTable(
   (t) => [index('workout_item_sets_item_idx').on(t.workoutItemId)],
 );
 
+export const SESSION_ORIGINS = ['app', 'health'] as const;
+export type SessionOrigin = (typeof SESSION_ORIGINS)[number];
+
 export const sessions = sqliteTable(
   'sessions',
   {
@@ -186,6 +189,11 @@ export const sessions = sqliteTable(
     finishedAt: integer('finished_at'),
     notes: text('notes'),
     locationId: text('location_id'),
+    /**
+     * `app` = done in RepTile; `health` = imported from a Google Health record of a type the user picked, with
+     * no RepTile workout at the same time (ADR 0025): no blocks, only its `session_health` row.
+     */
+    origin: text('origin', { enum: SESSION_ORIGINS }).notNull().default('app'),
   },
   (t) => [index('sessions_started_idx').on(t.startedAt)],
 );

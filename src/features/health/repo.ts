@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { sessionHealth, sessions } from '@/db/schema';
@@ -6,7 +6,8 @@ import { createdFields, touched } from '@/lib/ids';
 
 import { healthStatus, readCalories, readExercises, readHeartRate, READ_WINDOW_MS } from './client';
 import { summarizeHeartRate } from './heart-rate';
-import { bestMatch, type AutoLinkResult, type HealthExercise } from './match';
+import { recordsToImport, supersededImports, type ImportResult } from './import';
+import { bestMatch, exerciseName, type AutoLinkResult, type HealthExercise } from './match';
 
 /** Margin around a session when looking for exercise records (the watch may start a bit earlier/later). */
 const MARGIN_MS = 2 * 60 * 60_000;
@@ -48,6 +49,43 @@ export async function linkHealth(sessionId: string, exercise: HealthExercise) {
     calories,
     hrSeries: hr?.perMinute ?? null,
     unlinked: false,
+  });
+  await dropImportsOf(exercise.id, sessionId);
+}
+
+/**
+ * Removes from the history the imported session (ADR 0025) holding a record that a RepTile workout now links
+ * to, along with its link, so the record shows only once.
+ */
+async function dropImportsOf(recordId: string, keepSessionId: string) {
+  const rows = await db
+    .select({ id: sessionHealth.id, sessionId: sessionHealth.sessionId })
+    .from(sessionHealth)
+    .innerJoin(sessions, eq(sessions.id, sessionHealth.sessionId))
+    .where(
+      and(
+        eq(sessionHealth.recordId, recordId),
+        isNull(sessionHealth.deletedAt),
+        ne(sessionHealth.sessionId, keepSessionId),
+        eq(sessions.origin, 'health'),
+      ),
+    );
+  await removeImports(rows);
+}
+
+/** Soft-deletes imported sessions and their links (the record can then be linked or imported again). */
+async function removeImports(rows: { id: string; sessionId: string }[]) {
+  if (rows.length === 0) return;
+  const now = Date.now();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sessions)
+      .set({ deletedAt: now, ...touched() })
+      .where(inArray(sessions.id, rows.map((r) => r.sessionId)));
+    await tx
+      .update(sessionHealth)
+      .set({ deletedAt: now, ...touched() })
+      .where(inArray(sessionHealth.id, rows.map((r) => r.id)));
   });
 }
 
@@ -131,4 +169,74 @@ export async function autoLinkSessions(sessionIds?: string[]): Promise<AutoLinkR
     count += 1;
   }
   return { pending: pending.length, records: exercises.length, linked: count, refreshed };
+}
+
+let importing: Promise<ImportResult> | null = null;
+
+/**
+ * Imports the Google Health records of the last 30 days whose activity is in `activities` and that no RepTile
+ * workout covers (ADR 0025): each becomes a finished session with `origin = 'health'` and no blocks, linked to
+ * its record. Links the app's own workouts first, so they claim their records, and drops imports a workout
+ * covers now. One run at a time; does nothing without permission or without activities.
+ */
+export function importHealthWorkouts(activities: readonly string[]): Promise<ImportResult> {
+  importing ??= runImport(activities).finally(() => {
+    importing = null;
+  });
+  return importing;
+}
+
+async function runImport(activities: readonly string[]): Promise<ImportResult> {
+  const none = { imported: 0, removed: 0 };
+  if (activities.length === 0 || (await healthStatus()) !== 'granted') return none;
+  await autoLinkSessions();
+
+  const now = Date.now();
+  const since = now - READ_WINDOW_MS;
+  const all = await db
+    .select({ id: sessions.id, origin: sessions.origin, startedAt: sessions.startedAt, finishedAt: sessions.finishedAt })
+    .from(sessions)
+    .where(and(isNull(sessions.deletedAt), gte(sessions.startedAt, since - MARGIN_MS)));
+  const appSessions = all.filter((s) => s.origin === 'app').map((s) => ({ start: s.startedAt, end: s.finishedAt }));
+  const links = await db
+    .select({ id: sessionHealth.id, sessionId: sessionHealth.sessionId, recordId: sessionHealth.recordId })
+    .from(sessionHealth)
+    .where(and(isNull(sessionHealth.deletedAt), isNotNull(sessionHealth.recordId)));
+
+  // Imports a workout covers now (done or retimed after the import).
+  const imported = all
+    .filter((s) => s.origin === 'health' && s.finishedAt != null)
+    .map((s) => ({ id: s.id, start: s.startedAt, end: s.finishedAt! }));
+  const superseded = new Set(supersededImports(imported, appSessions, now).map((s) => s.id));
+  await removeImports(links.filter((l) => superseded.has(l.sessionId)));
+
+  const knownRecordIds = new Set(links.filter((l) => !superseded.has(l.sessionId)).map((l) => l.recordId!));
+  const records = recordsToImport(await readExercises(since, now), { picked: activities, knownRecordIds, appSessions, now });
+  for (const r of records) {
+    const session = createdFields();
+    // The link row goes in with the session, so a failed heart-rate read never imports the record twice.
+    await db.transaction(async (tx) => {
+      await tx.insert(sessions).values({
+        ...session,
+        workoutId: null,
+        name: exerciseName(r),
+        startedAt: r.start,
+        finishedAt: r.end,
+        locationId: null,
+        origin: 'health',
+      });
+      await tx.insert(sessionHealth).values({
+        ...createdFields(),
+        sessionId: session.id,
+        recordId: r.id,
+        source: r.source,
+        exerciseType: r.exerciseType,
+        title: r.title,
+        startedAt: r.start,
+        finishedAt: r.end,
+      });
+    });
+    await linkHealth(session.id, r).catch(() => {});
+  }
+  return { imported: records.length, removed: superseded.size };
 }

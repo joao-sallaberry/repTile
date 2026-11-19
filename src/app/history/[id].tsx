@@ -103,6 +103,8 @@ export default function SessionDetailScreen() {
   const end = session.finishedAt ?? session.startedAt;
   const span = `${timeFmt.format(session.startedAt)} – ${timeFmt.format(end)}`;
   const previous = runs.find((r) => r.startedAt < session.startedAt);
+  // Imported from Google Health (ADR 0025): only the watch data.
+  const imported = session.origin === 'health';
   const recordNames = records.map((r) => (r.kind === 'wod' ? r.title : (exerciseMap.get(r.exerciseId)?.name ?? '—')));
 
   const stats = [
@@ -113,7 +115,9 @@ export default function SessionDetailScreen() {
           { label: 'Séries', value: String(workSets), note: warmups ? `+ ${plural(warmups, 'aquecimento', 'aquecimentos')}` : null },
         ]
       : []),
-    { label: 'Recordes', value: records.length ? String(records.length) : '—', note: recordNames.slice(0, 2).join(', ') || null, pr: records.length > 0 },
+    ...(imported
+      ? []
+      : [{ label: 'Recordes', value: records.length ? String(records.length) : '—', note: recordNames.slice(0, 2).join(', ') || null, pr: records.length > 0 }]),
     ...healthStats(health),
   ];
 
@@ -152,14 +156,16 @@ export default function SessionDetailScreen() {
                   setEdit({ name: session.name, ...normalizeTimes(session.startedAt, end) });
                 }}
               />
-              <Menu.Item
-                leadingIcon="heart-pulse"
-                title="Dados do Google Health"
-                onPress={() => {
-                  setMenuOpen(false);
-                  setHealthOpen(true);
-                }}
-              />
+              {!imported && (
+                <Menu.Item
+                  leadingIcon="heart-pulse"
+                  title="Dados do Google Health"
+                  onPress={() => {
+                    setMenuOpen(false);
+                    setHealthOpen(true);
+                  }}
+                />
+              )}
               <Menu.Item
                 leadingIcon="delete"
                 title="Excluir do histórico"
@@ -191,6 +197,11 @@ export default function SessionDetailScreen() {
                 accessibilityRole="link"
                 onPress={() => router.push({ pathname: '/workout/[id]', params: { id: routine.id } })}>
                 · Rotina {routine.name}
+              </Text>
+            )}
+            {imported && (
+              <Text variant="bodyMedium" style={muted}>
+                · Importado do Google Health
               </Text>
             )}
           </View>

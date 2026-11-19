@@ -10,6 +10,7 @@ import {
   requestHealthPermissions,
   type HealthStatus,
 } from './client';
+import { HealthImportSettings } from './import-settings';
 import { autoLinkMessage, exerciseName, sourceLabel, type HealthExercise } from './match';
 import { autoLinkSessions } from './repo';
 import { SourceHint } from './source-hint';
@@ -108,6 +109,7 @@ export function HealthSettings() {
           onPress={linkAll}
         />
       )}
+      {status === 'granted' && <HealthImportSettings />}
     </>
   );
 }
